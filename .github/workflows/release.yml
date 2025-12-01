@@ -39,11 +39,8 @@ jobs:
         Compress-Archive -Path ./publish/self-contained/* -DestinationPath ./Taview-self-contained-win-x64.zip -Force
         
     - name: Upload Release Assets
-      uses: softprops/action-gh-release@v2
-      with:
-        files: |
-          ./Taview-framework-dependent-win-x64.zip
-          ./Taview-self-contained-win-x64.zip
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release upload ${{ github.event.release.tag_name }} ./Taview-framework-dependent-win-x64.zip ./Taview-self-contained-win-x64.zip --clobber
 

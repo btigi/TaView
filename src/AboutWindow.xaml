@@ -1,0 +1,44 @@
+<Window x:Class="Taview.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="About TAView" 
+        Height="250" Width="400"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="NoResize">
+    <Grid Margin="20,20,20,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" 
+                  Text="TAView" 
+                  FontSize="24" 
+                  FontWeight="Bold" 
+                  HorizontalAlignment="Center"
+                  Margin="0,0,0,10"/>
+
+        <TextBlock Grid.Row="1" 
+                  Text="HPI File Viewer" 
+                  FontSize="14" 
+                  HorizontalAlignment="Center"
+                  Margin="0,0,0,20"/>
+
+        <TextBlock x:Name="VersionTextBlock" 
+                  Grid.Row="2" 
+                  TextWrapping="Wrap" 
+                  HorizontalAlignment="Center"
+                  Margin="0,0,0,20"/>
+
+        <Button Grid.Row="3" 
+               Content="OK" 
+               Width="76" 
+               Height="30" 
+               HorizontalAlignment="Center"
+               Margin="0,6,0,4"
+               Click="OkButton_Click"/>
+    </Grid>
+</Window>

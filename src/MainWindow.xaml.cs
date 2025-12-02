@@ -7,6 +7,7 @@ using SixLabors.ImageSharp.PixelFormats;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -24,6 +25,9 @@ namespace Taview
         private HpiProcessor? _currentHpiProcessor;
         private string? _lastOpenFolder;
         private string? _lastSaveFolder;
+
+        // File type filter state
+        private HashSet<string> _checkedExtensions = new(StringComparer.OrdinalIgnoreCase);
 
         // GAF navigation state
         private List<GafImageEntry>? _currentGafEntries;
@@ -110,13 +114,21 @@ namespace Taview
             aboutWindow.ShowDialog();
         }
 
+        private void SortAlphabeticallyButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Rebuild tree with the new sort setting (no need to reload from disk)
+            if (!string.IsNullOrEmpty(_currentHpiFilePath) && _currentArchive != null)
+            {
+                BuildTreeView();
+            }
+        }
+
         private void LoadHpiFile(string filePath)
         {
             _currentHpiFilePath = filePath;
-            FileTreeView.Items.Clear();
-            _filePathMap.Clear();
             ContentTextBox.Text = string.Empty;
             FileInfoTextBlock.Text = $"File: {Path.GetFileName(filePath)}";
+            Title = $"{Path.GetFileName(filePath)} - TAView";
 
             _currentHpiProcessor = new HpiProcessor();
             var archive = _currentHpiProcessor.Read(filePath);
@@ -128,19 +140,198 @@ namespace Taview
                                "Information",
                                MessageBoxButton.OK,
                                MessageBoxImage.Information);
+                FilterDropdownButton.IsEnabled = false;
                 return;
             }
+
+            // Build file type filter
+            BuildFileTypeFilter();
+
+            BuildTreeView();
+        }
+
+        private void BuildFileTypeFilter()
+        {
+            if (_currentArchive == null)
+                return;
+
+            FilterCheckboxPanel.Children.Clear();
+            _checkedExtensions.Clear();
+
+            // Get all unique extensions, sorted alphabetically
+            var extensions = _currentArchive.Files
+                .Select(f => Path.GetExtension(f.RelativePath).ToUpperInvariant())
+                .Where(ext => !string.IsNullOrEmpty(ext))
+                .Distinct()
+                .OrderBy(ext => ext, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            // Add [All] checkbox at the top
+            var allCheckBox = new CheckBox
+            {
+                Content = "[All]",
+                IsChecked = true,
+                Margin = new Thickness(2),
+                Tag = "ALL",
+                FontWeight = FontWeights.Bold
+            };
+            allCheckBox.Checked += AllFilterCheckBox_Checked;
+            allCheckBox.Unchecked += AllFilterCheckBox_Unchecked;
+            FilterCheckboxPanel.Children.Add(allCheckBox);
+
+            // Add separator
+            FilterCheckboxPanel.Children.Add(new Separator { Margin = new Thickness(0, 2, 0, 2) });
+
+            // Check all extensions by default
+            foreach (var ext in extensions)
+            {
+                _checkedExtensions.Add(ext);
+
+                var checkBox = new CheckBox
+                {
+                    Content = ext,
+                    IsChecked = true,
+                    Margin = new Thickness(2),
+                    Tag = ext
+                };
+                checkBox.Checked += FilterCheckBox_Changed;
+                checkBox.Unchecked += FilterCheckBox_Changed;
+
+                FilterCheckboxPanel.Children.Add(checkBox);
+            }
+
+            FilterDropdownButton.IsEnabled = extensions.Count > 0;
+        }
+
+        private void AllFilterCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            SetAllFilterCheckboxes(true);
+        }
+
+        private void AllFilterCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            SetAllFilterCheckboxes(false);
+        }
+
+        private void SetAllFilterCheckboxes(bool isChecked)
+        {
+            foreach (var child in FilterCheckboxPanel.Children)
+            {
+                if (child is CheckBox checkBox && checkBox.Tag is string tag && tag != "ALL")
+                {
+                    // Temporarily unhook events to avoid multiple tree rebuilds
+                    checkBox.Checked -= FilterCheckBox_Changed;
+                    checkBox.Unchecked -= FilterCheckBox_Changed;
+
+                    checkBox.IsChecked = isChecked;
+
+                    if (isChecked)
+                    {
+                        _checkedExtensions.Add(tag);
+                    }
+                    else
+                    {
+                        _checkedExtensions.Remove(tag);
+                    }
+
+                    // Rehook events
+                    checkBox.Checked += FilterCheckBox_Changed;
+                    checkBox.Unchecked += FilterCheckBox_Changed;
+                }
+            }
+
+            BuildTreeView();
+        }
+
+        private void FilterCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            if (sender is CheckBox checkBox && checkBox.Tag is string ext)
+            {
+                if (checkBox.IsChecked == true)
+                {
+                    _checkedExtensions.Add(ext);
+                }
+                else
+                {
+                    _checkedExtensions.Remove(ext);
+                }
+
+                UpdateAllCheckboxState();
+                BuildTreeView();
+            }
+        }
+
+        private void UpdateAllCheckboxState()
+        {
+            // Find the [All] checkbox and update its state
+            foreach (var child in FilterCheckboxPanel.Children)
+            {
+                if (child is CheckBox checkBox && checkBox.Tag is string tag && tag == "ALL")
+                {
+                    // Temporarily unhook events
+                    checkBox.Checked -= AllFilterCheckBox_Checked;
+                    checkBox.Unchecked -= AllFilterCheckBox_Unchecked;
+
+                    // Count total extension checkboxes
+                    int totalCount = 0;
+                    int checkedCount = 0;
+                    foreach (var c in FilterCheckboxPanel.Children)
+                    {
+                        if (c is CheckBox cb && cb.Tag is string t && t != "ALL")
+                        {
+                            totalCount++;
+                            if (cb.IsChecked == true)
+                                checkedCount++;
+                        }
+                    }
+
+                    if (checkedCount == 0)
+                        checkBox.IsChecked = false;
+                    else if (checkedCount == totalCount)
+                        checkBox.IsChecked = true;
+                    else
+                        checkBox.IsChecked = null; // Indeterminate
+
+                    // Rehook events
+                    checkBox.Checked += AllFilterCheckBox_Checked;
+                    checkBox.Unchecked += AllFilterCheckBox_Unchecked;
+                    break;
+                }
+            }
+        }
+
+        private void BuildTreeView()
+        {
+            if (_currentArchive == null || _currentHpiFilePath == null)
+                return;
+
+            FileTreeView.Items.Clear();
+            _filePathMap.Clear();
+
+            var sortAlphabetically = SortAlphabeticallyButton.IsChecked == true;
 
             // Build tree structure
             var rootNode = new TreeViewItem
             {
-                Header = Path.GetFileName(filePath),
+                Header = Path.GetFileName(_currentHpiFilePath),
                 Tag = "ROOT"
             };
 
             var directoryMap = new Dictionary<string, TreeViewItem>();
 
-            foreach (var file in archive.Files)
+            // Get files, optionally sorted and filtered
+            var files = sortAlphabetically
+                ? _currentArchive.Files.OrderBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase).ToList()
+                : _currentArchive.Files.ToList();
+
+            // Filter by checked extensions
+            files = files.Where(f =>
+            {
+                var ext = Path.GetExtension(f.RelativePath).ToUpperInvariant();
+                return string.IsNullOrEmpty(ext) || _checkedExtensions.Contains(ext);
+            }).ToList();
+
+            foreach (var file in files)
             {
                 var parts = file.RelativePath.Split('\\', '/');
                 var currentPath = string.Empty;

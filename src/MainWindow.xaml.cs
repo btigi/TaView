@@ -114,6 +114,101 @@ namespace Taview
             aboutWindow.ShowDialog();
         }
 
+        private void ExtractAllMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_currentHpiFilePath))
+            {
+                MessageBox.Show("No HPI file is currently open.",
+                               "Information",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Information);
+                return;
+            }
+
+            // Prompt user for folder
+            var dialog = new Microsoft.Win32.OpenFolderDialog
+            {
+                Title = "Select folder to extract files to"
+            };
+
+            // Set initial directory from last used save folder
+            if (!string.IsNullOrEmpty(_lastSaveFolder) && Directory.Exists(_lastSaveFolder))
+            {
+                dialog.InitialDirectory = _lastSaveFolder;
+            }
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            var targetFolder = dialog.FolderName;
+            _lastSaveFolder = targetFolder;
+
+            try
+            {
+                // Read all files with content
+                var processor = new HpiProcessor();
+                var archive = processor.Read(_currentHpiFilePath, false);
+
+                if (archive == null || archive.Files == null || archive.Files.Count == 0)
+                {
+                    MessageBox.Show("No files found in HPI archive.",
+                                   "Information",
+                                   MessageBoxButton.OK,
+                                   MessageBoxImage.Information);
+                    return;
+                }
+
+                int extractedCount = 0;
+                int errorCount = 0;
+
+                foreach (var file in archive.Files)
+                {
+                    try
+                    {
+                        var targetPath = Path.Combine(targetFolder, file.RelativePath);
+                        var targetDir = Path.GetDirectoryName(targetPath);
+
+                        if (!string.IsNullOrEmpty(targetDir) && !Directory.Exists(targetDir))
+                        {
+                            Directory.CreateDirectory(targetDir);
+                        }
+
+                        if (file.Data != null)
+                        {
+                            File.WriteAllBytes(targetPath, file.Data);
+                            extractedCount++;
+                        }
+                        else
+                        {
+                            errorCount++;
+                        }
+                    }
+                    catch
+                    {
+                        errorCount++;
+                    }
+                }
+
+                var message = $"Extracted {extractedCount} files to:\n{targetFolder}";
+                if (errorCount > 0)
+                {
+                    message += $"\n\n{errorCount} files could not be extracted.";
+                }
+
+                MessageBox.Show(message,
+                               "Extract All Complete",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error extracting files:\n{ex.Message}",
+                               "Error",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Error);
+            }
+        }
+
         private void SortAlphabeticallyButton_Click(object sender, RoutedEventArgs e)
         {
             // Rebuild tree with the new sort setting (no need to reload from disk)
@@ -146,6 +241,9 @@ namespace Taview
 
             // Build file type filter
             BuildFileTypeFilter();
+
+            // Enable Extract All menu item
+            ExtractAllMenuItem.IsEnabled = true;
 
             BuildTreeView();
         }

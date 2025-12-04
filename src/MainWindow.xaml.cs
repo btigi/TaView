@@ -48,6 +48,10 @@ namespace Taview
         private WaveStream? _waveStream;
         private TimeSpan _audioTotalDuration = TimeSpan.Zero;
 
+        // Drag-drop state
+        private System.Windows.Point _dragStartPoint;
+        private bool _isDragging = false;
+
         public MainWindow(string? filePath = null)
         {
             InitializeComponent();
@@ -556,6 +560,75 @@ namespace Taview
                     TextScrollViewer.ScrollToHome();
                 }
             }
+        }
+
+        private void FileTreeView_PreviewMouseLeftButtonDown(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            _dragStartPoint = e.GetPosition(null);
+            _isDragging = false;
+        }
+
+        private void FileTreeView_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (e.LeftButton != System.Windows.Input.MouseButtonState.Pressed)
+            {
+                _isDragging = false;
+                return;
+            }
+
+            System.Windows.Point currentPosition = e.GetPosition(null);
+            System.Windows.Vector diff = _dragStartPoint - currentPosition;
+
+            if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+            {
+                if (_isDragging)
+                    return;
+
+                var treeViewItem = FindAncestor<TreeViewItem>((DependencyObject)e.OriginalSource);
+                if (treeViewItem == null)
+                    return;
+
+                if (!_filePathMap.TryGetValue(treeViewItem, out var fileEntry))
+                    return;
+
+                var fileData = GetFileData(fileEntry);
+                if (fileData == null || fileData.Length == 0)
+                    return;
+
+                _isDragging = true;
+
+                try
+                {
+                    var fileName = Path.GetFileName(fileEntry.RelativePath);
+                    var tempPath = Path.Combine(Path.GetTempPath(), fileName);
+                    File.WriteAllBytes(tempPath, fileData);
+
+                    var dataObject = new DataObject();
+                    dataObject.SetFileDropList(new System.Collections.Specialized.StringCollection { tempPath });
+
+                    DragDrop.DoDragDrop(treeViewItem, dataObject, DragDropEffects.Copy);
+                }
+                catch
+                {
+                    // :(
+                }
+                finally
+                {
+                    _isDragging = false;
+                }
+            }
+        }
+
+        private static T? FindAncestor<T>(DependencyObject? current) where T : DependencyObject
+        {
+            while (current != null)
+            {
+                if (current is T t)
+                    return t;
+                current = VisualTreeHelper.GetParent(current);
+            }
+            return null;
         }
 
         private void ExtractMenuItem_Click(object sender, RoutedEventArgs e)

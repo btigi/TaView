@@ -72,6 +72,8 @@
             <TreeView x:Name="FileTreeView" 
                      Grid.Column="0"
                      SelectedItemChanged="FileTreeView_SelectedItemChanged"
+                     PreviewMouseLeftButtonDown="FileTreeView_PreviewMouseLeftButtonDown"
+                     PreviewMouseMove="FileTreeView_PreviewMouseMove"
                      BorderThickness="0">
                 <TreeView.Resources>
                     <Style TargetType="TreeViewItem">

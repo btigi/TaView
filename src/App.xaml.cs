@@ -9,6 +9,10 @@ namespace Taview
         {
             base.OnStartup(e);
 
+            // Load settings and apply theme
+            var settings = AppSettings.Instance;
+            ThemeManager.ApplyTheme(settings.Theme);
+
             // Check for command-line arguments
             string? filePath = null;
             if (e.Args.Length > 0)

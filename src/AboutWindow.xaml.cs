@@ -8,6 +8,10 @@ namespace Taview
         public AboutWindow()
         {
             InitializeComponent();
+
+            // Set up title bar theming
+            ThemeManager.InitializeWindow(this);
+
             SetVersionText();
         }
 

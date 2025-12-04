@@ -1,5 +1,6 @@
 using ii.CompleteDestruction;
 using ii.CompleteDestruction.Model.Hpi;
+using MahApps.Metro.Controls;
 using NAudio.Wave;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
@@ -45,6 +46,9 @@ namespace Taview
         public MainWindow(string? filePath = null)
         {
             InitializeComponent();
+
+            // Set up title bar theming
+            ThemeManager.InitializeWindow(this);
 
             // Load file if provided via command line
             if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
@@ -112,6 +116,15 @@ namespace Taview
                 Owner = this
             };
             aboutWindow.ShowDialog();
+        }
+
+        private void OptionsMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var optionsWindow = new OptionsWindow
+            {
+                Owner = this
+            };
+            optionsWindow.ShowDialog();
         }
 
         private void ExtractAllMenuItem_Click(object sender, RoutedEventArgs e)
@@ -273,6 +286,9 @@ namespace Taview
                 Tag = "ALL",
                 FontWeight = FontWeights.Bold
             };
+            allCheckBox.SetResourceReference(CheckBox.ForegroundProperty, "MahApps.Brushes.ThemeForeground");
+            allCheckBox.SetResourceReference(CheckBoxHelper.CheckGlyphForegroundCheckedProperty, "MahApps.Brushes.ThemeForeground");
+            allCheckBox.SetResourceReference(CheckBoxHelper.CheckGlyphForegroundIndeterminateProperty, "MahApps.Brushes.ThemeForeground");
             allCheckBox.Checked += AllFilterCheckBox_Checked;
             allCheckBox.Unchecked += AllFilterCheckBox_Unchecked;
             FilterCheckboxPanel.Children.Add(allCheckBox);
@@ -292,6 +308,8 @@ namespace Taview
                     Margin = new Thickness(2),
                     Tag = ext
                 };
+                checkBox.SetResourceReference(CheckBox.ForegroundProperty, "MahApps.Brushes.ThemeForeground");
+                checkBox.SetResourceReference(CheckBoxHelper.CheckGlyphForegroundCheckedProperty, "MahApps.Brushes.ThemeForeground");
                 checkBox.Checked += FilterCheckBox_Changed;
                 checkBox.Unchecked += FilterCheckBox_Changed;
 

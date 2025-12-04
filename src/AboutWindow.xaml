@@ -19,19 +19,22 @@
                   FontSize="24" 
                   FontWeight="Bold" 
                   HorizontalAlignment="Center"
-                  Margin="0,0,0,10"/>
+                  Margin="0,0,0,10"
+                  Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
 
         <TextBlock Grid.Row="1" 
                   Text="HPI File Viewer" 
                   FontSize="14" 
                   HorizontalAlignment="Center"
-                  Margin="0,0,0,20"/>
+                  Margin="0,0,0,20"
+                  Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
 
         <TextBlock x:Name="VersionTextBlock" 
                   Grid.Row="2" 
                   TextWrapping="Wrap" 
                   HorizontalAlignment="Center"
-                  Margin="0,0,0,20"/>
+                  Margin="0,0,0,20"
+                  Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
 
         <Button Grid.Row="3" 
                Content="OK" 

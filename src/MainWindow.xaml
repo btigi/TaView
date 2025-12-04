@@ -18,6 +18,8 @@
                 <MenuItem Header="_Open" Click="OpenMenuItem_Click"/>
                 <MenuItem Header="Extract _All..." Click="ExtractAllMenuItem_Click" IsEnabled="False" x:Name="ExtractAllMenuItem"/>
                 <Separator/>
+                <MenuItem Header="_Options..." Click="OptionsMenuItem_Click"/>
+                <Separator/>
                 <MenuItem Header="E_xit" Click="ExitMenuItem_Click"/>
             </MenuItem>
             <MenuItem Header="_Help">
@@ -46,8 +48,8 @@
                    Placement="Bottom"
                    StaysOpen="False"
                    IsOpen="{Binding IsChecked, ElementName=FilterDropdownButton, Mode=TwoWay}">
-                <Border Background="White" 
-                       BorderBrush="Gray" 
+                <Border Background="{DynamicResource MahApps.Brushes.ThemeBackground}" 
+                       BorderBrush="{DynamicResource MahApps.Brushes.Border.NonActive}" 
                        BorderThickness="1"
                        Padding="5"
                        MaxHeight="300">
@@ -81,7 +83,7 @@
             <!-- Splitter -->
             <GridSplitter Grid.Column="1" 
                          HorizontalAlignment="Stretch" 
-                         Background="LightGray"/>
+                         Background="{DynamicResource MahApps.Brushes.Border.NonActive}"/>
 
             <!-- Content Display Area -->
             <Grid Grid.Column="2">
@@ -92,11 +94,12 @@
 
                 <!-- File info header -->
                 <Border Grid.Row="0" 
-                       Background="LightGray" 
+                       Background="{DynamicResource MahApps.Brushes.Gray8}" 
                        Padding="5">
                     <TextBlock x:Name="FileInfoTextBlock" 
                               Text="No file selected" 
-                              FontWeight="Bold"/>
+                              FontWeight="Bold"
+                              Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
                 </Border>
 
                 <!-- Content display -->
@@ -110,7 +113,6 @@
                                 IsReadOnly="True" 
                                 TextWrapping="Wrap"
                                 FontFamily="Consolas"
-                                Background="White"
                                 BorderThickness="0"/>
                     </ScrollViewer>
                     
@@ -123,7 +125,6 @@
                         
                         <!-- Audio player area -->
                         <Border Grid.Row="0" 
-                               Background="White" 
                                VerticalAlignment="Center"
                                HorizontalAlignment="Center"
                                Padding="20">
@@ -132,13 +133,14 @@
                                           FontSize="18" 
                                           FontWeight="Bold"
                                           HorizontalAlignment="Center"
-                                          Margin="0,0,0,20"/>
+                                          Margin="0,0,0,20"
+                                          Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
                             </StackPanel>
                         </Border>
                         
                         <!-- Audio controls -->
                         <Border Grid.Row="1" 
-                               Background="LightGray" 
+                               Background="{DynamicResource MahApps.Brushes.Gray8}" 
                                Padding="10">
                             <Grid>
                                 <Grid.RowDefinitions>
@@ -188,7 +190,8 @@
                                               Text="00:00"
                                               VerticalAlignment="Center"
                                               Margin="0,0,10,0"
-                                              MinWidth="50"/>
+                                              MinWidth="50"
+                                              Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
                                     
                                     <Slider x:Name="AudioPositionSlider"
                                            Grid.Column="1"
@@ -205,7 +208,8 @@
                                               Grid.Column="2"
                                               Text="00:00"
                                               VerticalAlignment="Center"
-                                              MinWidth="50"/>
+                                              MinWidth="50"
+                                              Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
                                 </Grid>
                             </Grid>
                         </Border>
@@ -233,7 +237,7 @@
                         
                         <!-- Image controls (zoom and navigation) -->
                         <Border Grid.Row="1" 
-                               Background="LightGray" 
+                               Background="{DynamicResource MahApps.Brushes.Gray8}" 
                                Padding="5">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -248,7 +252,8 @@
                                 <TextBlock Grid.Column="0" 
                                           Text="Zoom:" 
                                           VerticalAlignment="Center"
-                                          Margin="0,0,10,0"/>
+                                          Margin="0,0,10,0"
+                                          Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
                                 
                                 <!-- Zoom slider -->
                                 <Slider x:Name="ZoomSlider"
@@ -268,7 +273,8 @@
                                           Text="100%"
                                           VerticalAlignment="Center"
                                           MinWidth="50"
-                                          Margin="0,0,20,0"/>
+                                          Margin="0,0,20,0"
+                                          Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
                                 
                                 <!-- Previous frame button (for GAF) -->
                                 <Button x:Name="PreviousFrameButton"

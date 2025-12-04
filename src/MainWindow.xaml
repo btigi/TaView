@@ -140,7 +140,6 @@
                         <TextBox x:Name="ContentTextBox" 
                                 IsReadOnly="True" 
                                 TextWrapping="Wrap"
-                                FontFamily="Consolas"
                                 BorderThickness="0"/>
                     </ScrollViewer>
                     

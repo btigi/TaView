@@ -55,6 +55,9 @@ namespace Taview
             // Set up title bar theming
             ThemeManager.InitializeWindow(this);
 
+            ApplyFontSettings();
+            OptionsWindow.FontSettingsChanged += ApplyFontSettings;
+
             // Load file if provided via command line
             if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
             {
@@ -70,6 +73,13 @@ namespace Taview
                                    MessageBoxImage.Error);
                 }
             }
+        }
+
+        private void ApplyFontSettings()
+        {
+            var settings = AppSettings.Instance;
+            ContentTextBox.FontFamily = new FontFamily(settings.FontFamily);
+            ContentTextBox.FontSize = settings.FontSize;
         }
 
         private void OpenMenuItem_Click(object sender, RoutedEventArgs e)

@@ -22,6 +22,8 @@ namespace Taview
     {
         public ThemeOption Theme { get; set; } = ThemeOption.System;
         public DefaultViewOption DefaultView { get; set; } = DefaultViewOption.Preview;
+        public string FontFamily { get; set; } = "Consolas";
+        public double FontSize { get; set; } = 12;
 
         private static readonly string SettingsFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

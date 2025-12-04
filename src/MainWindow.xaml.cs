@@ -36,6 +36,11 @@ namespace Taview
         private int _currentGafFrameIndex = 0;
         private byte[]? _currentGafFileData;
 
+        // Current file view state
+        private byte[]? _currentFileData;
+        private HpiFileEntry? _currentFileEntry;
+        private bool _isHexView = false;
+
         // Audio playback state
         private DispatcherTimer? _audioPositionTimer;
         private bool _isDraggingAudioSlider = false;
@@ -608,6 +613,48 @@ namespace Taview
             }
         }
 
+        private void ViewToggle_Checked(object sender, RoutedEventArgs e)
+        {
+            if (_currentFileEntry == null || _currentFileData == null)
+                return;
+
+            _isHexView = HexViewButton.IsChecked == true;
+
+            if (_isHexView)
+            {
+                ShowHexView();
+            }
+            else
+            {
+                ShowPreviewView();
+            }
+        }
+
+        private void ShowHexView()
+        {
+            if (_currentFileData == null || _currentFileEntry == null)
+                return;
+
+            StopAudio();
+
+            TextScrollViewer.Visibility = Visibility.Visible;
+            ImageContentGrid.Visibility = Visibility.Collapsed;
+            AudioContentGrid.Visibility = Visibility.Collapsed;
+
+            ContentTextBox.Text = FormatHexDump(_currentFileData, _currentFileEntry.RelativePath);
+            TextScrollViewer.ScrollToHome();
+        }
+
+        private void ShowPreviewView()
+        {
+            if (_currentFileEntry == null)
+                return;
+
+            // Re-display the file content in preview mode
+            _isHexView = false;
+            DisplayFileContentInternal(_currentFileEntry, _currentFileData);
+        }
+
         private void DisplayFileContent(HpiFileEntry fileEntry)
         {
             try
@@ -618,6 +665,7 @@ namespace Taview
                 if (_currentHpiFilePath == null || _currentArchive == null)
                 {
                     ContentTextBox.Text = "No HPI file loaded.";
+                    ViewTogglePanel.Visibility = Visibility.Collapsed;
                     return;
                 }
 
@@ -626,6 +674,42 @@ namespace Taview
                 if (fileData == null || fileData.Length == 0)
                 {
                     ContentTextBox.Text = "Could not read file data from HPI archive.";
+                    ViewTogglePanel.Visibility = Visibility.Collapsed;
+                    return;
+                }
+
+                // Store current file data for view toggling
+                _currentFileData = fileData;
+                _currentFileEntry = fileEntry;
+
+                // Show view toggle (maintain current view selection)
+                ViewTogglePanel.Visibility = Visibility.Visible;
+
+                if (_isHexView)
+                {
+                    ShowHexView();
+                }
+                else
+                {
+                    DisplayFileContentInternal(fileEntry, fileData);
+                }
+            }
+            catch (Exception ex)
+            {
+                ContentTextBox.Text = $"Error reading file:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
+                TextScrollViewer.ScrollToHome();
+            }
+        }
+
+        private void DisplayFileContentInternal(HpiFileEntry fileEntry, byte[]? fileData)
+        {
+            try
+            {
+                var filePath = fileEntry.RelativePath;
+
+                if (fileData == null || fileData.Length == 0)
+                {
+                    ContentTextBox.Text = "Could not read file data from archive.";
                     return;
                 }
 

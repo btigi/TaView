@@ -96,10 +96,38 @@
                 <Border Grid.Row="0" 
                        Background="{DynamicResource MahApps.Brushes.Gray8}" 
                        Padding="5">
-                    <TextBlock x:Name="FileInfoTextBlock" 
-                              Text="No file selected" 
-                              FontWeight="Bold"
-                              Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <TextBlock x:Name="FileInfoTextBlock" 
+                                  Grid.Column="0"
+                                  Text="No file selected" 
+                                  FontWeight="Bold"
+                                  VerticalAlignment="Center"
+                                  Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                        
+                        <!-- View toggle buttons -->
+                        <StackPanel x:Name="ViewTogglePanel"
+                                   Grid.Column="1" 
+                                   Orientation="Horizontal"
+                                   Visibility="Collapsed">
+                            <RadioButton x:Name="PreviewViewButton"
+                                        Content="Preview"
+                                        IsChecked="True"
+                                        Margin="0,0,5,0"
+                                        Checked="ViewToggle_Checked"
+                                        Style="{StaticResource MahApps.Styles.RadioButton.Win10}"
+                                        Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                            <RadioButton x:Name="HexViewButton"
+                                        Content="Hex"
+                                        Checked="ViewToggle_Checked"
+                                        Style="{StaticResource MahApps.Styles.RadioButton.Win10}"
+                                        Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                        </StackPanel>
+                    </Grid>
                 </Border>
 
                 <!-- Content display -->

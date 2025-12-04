@@ -13,6 +13,7 @@ namespace Taview
         private const int DWMWA_USE_IMMERSIVE_DARK_MODE = 20;
 
         private ThemeOption _selectedTheme;
+        private DefaultViewOption _selectedDefaultView;
 
         public OptionsWindow()
         {
@@ -27,6 +28,9 @@ namespace Taview
             // Load current settings
             _selectedTheme = AppSettings.Instance.Theme;
             ThemeComboBox.SelectedIndex = (int)_selectedTheme;
+
+            _selectedDefaultView = AppSettings.Instance.DefaultView;
+            DefaultViewComboBox.SelectedIndex = (int)_selectedDefaultView;
         }
 
         private void UpdateTitleBarTheme()
@@ -41,9 +45,15 @@ namespace Taview
             _selectedTheme = (ThemeOption)ThemeComboBox.SelectedIndex;
         }
 
+        private void DefaultViewComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+        {
+            _selectedDefaultView = (DefaultViewOption)DefaultViewComboBox.SelectedIndex;
+        }
+
         private void OkButton_Click(object sender, RoutedEventArgs e)
         {
             AppSettings.Instance.Theme = _selectedTheme;
+            AppSettings.Instance.DefaultView = _selectedDefaultView;
             AppSettings.Instance.Save();
 
             // Apply theme

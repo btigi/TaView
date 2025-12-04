@@ -39,7 +39,7 @@ namespace Taview
         // Current file view state
         private byte[]? _currentFileData;
         private HpiFileEntry? _currentFileEntry;
-        private bool _isHexView = false;
+        private bool _isHexView = AppSettings.Instance.DefaultView == DefaultViewOption.Hex;
 
         // Audio playback state
         private DispatcherTimer? _audioPositionTimer;
@@ -684,13 +684,16 @@ namespace Taview
 
                 // Show view toggle (maintain current view selection)
                 ViewTogglePanel.Visibility = Visibility.Visible;
-
+                
+                // Update radio button state to match current view
                 if (_isHexView)
                 {
+                    HexViewButton.IsChecked = true;
                     ShowHexView();
                 }
                 else
                 {
+                    PreviewViewButton.IsChecked = true;
                     DisplayFileContentInternal(fileEntry, fileData);
                 }
             }

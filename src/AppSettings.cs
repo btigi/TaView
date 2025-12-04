@@ -12,9 +12,16 @@ namespace Taview
         System
     }
 
+    public enum DefaultViewOption
+    {
+        Preview,
+        Hex
+    }
+
     public class AppSettings
     {
         public ThemeOption Theme { get; set; } = ThemeOption.System;
+        public DefaultViewOption DefaultView { get; set; } = DefaultViewOption.Preview;
 
         private static readonly string SettingsFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

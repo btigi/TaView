@@ -2,18 +2,19 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Options" 
-        Height="200" Width="350"
+        Height="240" Width="350"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
     <Grid Margin="20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- Theme option -->
-        <Grid Grid.Row="0">
+        <Grid Grid.Row="0" Margin="0,0,0,15">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -35,8 +36,30 @@
             </ComboBox>
         </Grid>
 
+        <!-- Default view option -->
+        <Grid Grid.Row="1" Margin="0,0,0,15">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0" 
+                      Text="Default view:" 
+                      VerticalAlignment="Center"
+                      Margin="0,0,15,0"
+                      Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+            
+            <ComboBox x:Name="DefaultViewComboBox" 
+                     Grid.Column="1"
+                     SelectedIndex="0"
+                     SelectionChanged="DefaultViewComboBox_SelectionChanged">
+                <ComboBoxItem Content="Preview"/>
+                <ComboBoxItem Content="Hex"/>
+            </ComboBox>
+        </Grid>
+
         <!-- Buttons -->
-        <StackPanel Grid.Row="2" 
+        <StackPanel Grid.Row="3" 
                    Orientation="Horizontal" 
                    HorizontalAlignment="Right">
             <Button Content="OK" 

@@ -2,6 +2,7 @@ using ii.CompleteDestruction;
 using ii.CompleteDestruction.Model.Hpi;
 using MahApps.Metro.Controls;
 using NAudio.Wave;
+using NAudio.Wave.SampleProviders;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
@@ -24,6 +25,50 @@ namespace Taview
         public string FileName { get; set; } = string.Empty;
         public string RelativePath { get; set; } = string.Empty;
         public byte[] Data { get; set; } = Array.Empty<byte>();
+    }
+
+    public class FadeOutSampleProvider : ISampleProvider
+    {
+        private readonly ISampleProvider _source;
+        private readonly int _fadeOutSamples;
+        private readonly long _totalSamples;
+        private long _position;
+
+        public FadeOutSampleProvider(ISampleProvider source, long totalSamples, int fadeOutDurationMs = 50)
+        {
+            _source = source;
+            _totalSamples = totalSamples;
+            _fadeOutSamples = (int)(source.WaveFormat.SampleRate * source.WaveFormat.Channels * fadeOutDurationMs / 1000.0);
+            _position = 0;
+        }
+
+        public WaveFormat WaveFormat => _source.WaveFormat;
+
+        public void Reset()
+        {
+            _position = 0;
+        }
+
+        public int Read(float[] buffer, int offset, int count)
+        {
+            int samplesRead = _source.Read(buffer, offset, count);
+
+            long fadeStartPosition = _totalSamples - _fadeOutSamples;
+
+            for (int i = 0; i < samplesRead; i++)
+            {
+                long samplePosition = _position + i;
+                if (samplePosition >= fadeStartPosition)
+                {
+                    float fadeProgress = (float)(samplePosition - fadeStartPosition) / _fadeOutSamples;
+                    float volume = Math.Max(0, 1.0f - fadeProgress);
+                    buffer[offset + i] *= volume;
+                }
+            }
+
+            _position += samplesRead;
+            return samplesRead;
+        }
     }
 
     public partial class MainWindow : Window
@@ -56,6 +101,7 @@ namespace Taview
         private bool _isDraggingAudioSlider = false;
         private WaveOutEvent? _waveOut;
         private WaveStream? _waveStream;
+        private FadeOutSampleProvider? _fadeOutProvider;
         private TimeSpan _audioTotalDuration = TimeSpan.Zero;
 
         // Drag-drop state
@@ -1660,8 +1706,13 @@ namespace Taview
                 _waveStream = new WaveFileReader(memoryStream);
                 _audioTotalDuration = _waveStream.TotalTime;
 
+                long totalSamples = _waveStream.Length / (_waveStream.WaveFormat.BitsPerSample / 8);
+
+                var sampleProvider = _waveStream.ToSampleProvider();
+                _fadeOutProvider = new FadeOutSampleProvider(sampleProvider, totalSamples);
+
                 _waveOut = new WaveOutEvent();
-                _waveOut.Init(_waveStream);
+                _waveOut.Init(_fadeOutProvider);
                 _waveOut.PlaybackStopped += WaveOut_PlaybackStopped;
 
                 TotalTimeTextBlock.Text = FormatTimeSpan(_audioTotalDuration);
@@ -1697,6 +1748,8 @@ namespace Taview
                 {
                     _waveStream.Position = 0;
                 }
+
+                _fadeOutProvider?.Reset();
 
                 AudioPositionSlider.Value = 0;
                 CurrentTimeTextBlock.Text = "00:00";
@@ -1767,6 +1820,8 @@ namespace Taview
                     _waveStream.Dispose();
                     _waveStream = null;
                 }
+
+                _fadeOutProvider = null;
             }
             catch { }
 

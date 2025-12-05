@@ -18,9 +18,19 @@ using System.Windows.Threading;
 
 namespace Taview
 {
+    // Dropped file info
+    public class ExternalFileEntry
+    {
+        public string FileName { get; set; } = string.Empty;
+        public string RelativePath { get; set; } = string.Empty;
+        public byte[] Data { get; set; } = Array.Empty<byte>();
+    }
+
     public partial class MainWindow : Window
     {
         private Dictionary<TreeViewItem, HpiFileEntry> _filePathMap = new();
+        private Dictionary<TreeViewItem, ExternalFileEntry> _externalFileMap = new();
+        private HashSet<string> _deletedArchiveFiles = new(StringComparer.OrdinalIgnoreCase);
         private string? _currentHpiFilePath;
         private HpiArchive? _currentArchive;
         private HpiProcessor? _currentHpiProcessor;
@@ -241,6 +251,115 @@ namespace Taview
             }
         }
 
+        private void SaveMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_currentHpiFilePath))
+            {
+                MessageBox.Show("No archive file is currently open.",
+                               "Information",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Information);
+                return;
+            }
+
+            SaveArchive(_currentHpiFilePath);
+        }
+
+        private void SaveAsMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_currentHpiFilePath))
+            {
+                MessageBox.Show("No archive file is currently open.",
+                               "Information",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Information);
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                FileName = Path.GetFileName(_currentHpiFilePath),
+                Filter = "HPI Files (*.hpi)|*.hpi|CCX Files (*.ccx)|*.ccx|GP3 Files (*.gp3)|*.gp3|UFO Files (*.ufo)|*.ufo|All Files (*.*)|*.*",
+                Title = "Save Archive As"
+            };
+
+            if (!string.IsNullOrEmpty(_lastSaveFolder) && Directory.Exists(_lastSaveFolder))
+            {
+                dialog.InitialDirectory = _lastSaveFolder;
+            }
+
+            if (dialog.ShowDialog() == true)
+            {
+                var folder = Path.GetDirectoryName(dialog.FileName);
+                if (!string.IsNullOrEmpty(folder))
+                {
+                    _lastSaveFolder = folder;
+                }
+
+                SaveArchive(dialog.FileName);
+            }
+        }
+
+        private void SaveArchive(string outputPath)
+        {
+            if (_currentArchive == null || _currentHpiProcessor == null)
+            {
+                MessageBox.Show("No archive is currently loaded.",
+                               "Error",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Error);
+                return;
+            }
+
+            try
+            {
+                var filesToSave = new List<HpiFileEntry>();
+
+                foreach (var file in _currentArchive.Files)
+                {
+                    if (_deletedArchiveFiles.Contains(file.RelativePath))
+                        continue;
+
+                    var fileData = _currentHpiProcessor.Extract(file.RelativePath);
+                    if (fileData != null)
+                    {
+                        filesToSave.Add(new HpiFileEntry
+                        {
+                            RelativePath = file.RelativePath,
+                            Data = fileData
+                        });
+                    }
+                }
+
+                foreach (var kvp in _externalFileMap)
+                {
+                    var externalEntry = kvp.Value;
+                    filesToSave.Add(new HpiFileEntry
+                    {
+                        RelativePath = externalEntry.RelativePath,
+                        Data = externalEntry.Data
+                    });
+                }
+
+                var processor = new HpiProcessor();
+                processor.Write(outputPath, filesToSave);
+
+                MessageBox.Show($"Archive saved successfully to:\n{outputPath}",
+                               "Success",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Information);
+
+                LoadHpiFile(outputPath);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error saving archive:\n{ex.Message}",
+                               "Error",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Error);
+            }
+        }
+
         private void SortAlphabeticallyButton_Click(object sender, RoutedEventArgs e)
         {
             // Rebuild tree with the new sort setting (no need to reload from disk)
@@ -253,6 +372,7 @@ namespace Taview
         private void LoadHpiFile(string filePath)
         {
             _currentHpiFilePath = filePath;
+            _deletedArchiveFiles.Clear();
             ContentTextBox.Text = string.Empty;
             FileInfoTextBlock.Text = $"File: {Path.GetFileName(filePath)}";
             Title = $"{Path.GetFileName(filePath)} - TAView";
@@ -274,8 +394,10 @@ namespace Taview
             // Build file type filter
             BuildFileTypeFilter();
 
-            // Enable Extract All menu item
+            // Enable menu items
             ExtractAllMenuItem.IsEnabled = true;
+            SaveMenuItem.IsEnabled = true;
+            SaveAsMenuItem.IsEnabled = true;
 
             BuildTreeView();
         }
@@ -442,6 +564,7 @@ namespace Taview
 
             FileTreeView.Items.Clear();
             _filePathMap.Clear();
+            _externalFileMap.Clear();
 
             var sortAlphabetically = SortAlphabeticallyButton.IsChecked == true;
 
@@ -465,6 +588,9 @@ namespace Taview
                 var ext = Path.GetExtension(f.RelativePath).ToUpperInvariant();
                 return string.IsNullOrEmpty(ext) || _checkedExtensions.Contains(ext);
             }).ToList();
+
+            // Filter out deleted files
+            files = files.Where(f => !_deletedArchiveFiles.Contains(f.RelativePath)).ToList();
 
             foreach (var file in files)
             {
@@ -495,6 +621,15 @@ namespace Taview
                         };
                         extractMenuItem.Click += ExtractMenuItem_Click;
                         contextMenu.Items.Add(extractMenuItem);
+
+                        var removeMenuItem = new MenuItem
+                        {
+                            Header = "Remove",
+                            Tag = fileNode
+                        };
+                        removeMenuItem.Click += RemoveArchiveFileMenuItem_Click;
+                        contextMenu.Items.Add(removeMenuItem);
+
                         fileNode.ContextMenu = contextMenu;
 
                         parentNode.Items.Add(fileNode);
@@ -553,6 +688,10 @@ namespace Taview
                 {
                     DisplayFileContent(fileEntry);
                 }
+                else if (_externalFileMap.TryGetValue(selectedItem, out var externalEntry))
+                {
+                    DisplayExternalFileContent(externalEntry);
+                }
                 else
                 {
                     ContentTextBox.Text = string.Empty;
@@ -566,6 +705,26 @@ namespace Taview
         {
             _dragStartPoint = e.GetPosition(null);
             _isDragging = false;
+        }
+
+        private void FileTreeView_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Delete)
+            {
+                if (FileTreeView.SelectedItem is TreeViewItem selectedItem)
+                {
+                    if (_externalFileMap.ContainsKey(selectedItem))
+                    {
+                        RemoveExternalFile(selectedItem);
+                        e.Handled = true;
+                    }
+                    else if (_filePathMap.ContainsKey(selectedItem))
+                    {
+                        RemoveArchiveFile(selectedItem);
+                        e.Handled = true;
+                    }
+                }
+            }
         }
 
         private void FileTreeView_PreviewMouseMove(object sender, System.Windows.Input.MouseEventArgs e)
@@ -629,6 +788,180 @@ namespace Taview
                 current = VisualTreeHelper.GetParent(current);
             }
             return null;
+        }
+
+        private void FileTreeView_DragOver(object sender, DragEventArgs e)
+        {
+            e.Effects = DragDropEffects.None;
+
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+                return;
+
+            // Find the TreeViewItem under the mouse
+            var targetItem = FindAncestor<TreeViewItem>((DependencyObject)e.OriginalSource);
+            if (targetItem == null)
+                return;
+
+            // Check if it's a folder via string Tag (path) or "ROOT"
+            // Files have HpiFileEntry as Tag or are in _filePathMap or _externalFileMap
+            if (_filePathMap.ContainsKey(targetItem) || _externalFileMap.ContainsKey(targetItem))
+            {
+                // This is a file - don't allow drop
+                return;
+            }
+
+            // It's a folder or root - allow drop
+            e.Effects = DragDropEffects.Copy;
+            e.Handled = true;
+        }
+
+        private void FileTreeView_Drop(object sender, DragEventArgs e)
+        {
+            if (!e.Data.GetDataPresent(DataFormats.FileDrop))
+                return;
+
+            // Find the target TreeViewItem (folder)
+            var targetItem = FindAncestor<TreeViewItem>((DependencyObject)e.OriginalSource);
+            if (targetItem == null)
+                return;
+
+            // Don't allow drop on files
+            if (_filePathMap.ContainsKey(targetItem) || _externalFileMap.ContainsKey(targetItem))
+                return;
+
+            var files = (string[])e.Data.GetData(DataFormats.FileDrop);
+            if (files == null || files.Length == 0)
+                return;
+
+            foreach (var filePath in files)
+            {
+                try
+                {
+                    // Only handle files, not directories
+                    if (!File.Exists(filePath))
+                        continue;
+
+                    var fileName = Path.GetFileName(filePath);
+                    var fileData = File.ReadAllBytes(filePath);
+
+                    // Determine the relative path based on target folder
+                    string relativePath;
+                    if (targetItem.Tag is string tagPath)
+                    {
+                        if (tagPath == "ROOT")
+                        {
+                            relativePath = fileName;
+                        }
+                        else
+                        {
+                            relativePath = $"{tagPath}\\{fileName}";
+                        }
+                    }
+                    else
+                    {
+                        relativePath = fileName;
+                    }
+
+                    var externalEntry = new ExternalFileEntry
+                    {
+                        FileName = fileName,
+                        RelativePath = relativePath,
+                        Data = fileData
+                    };
+
+                    // Create tree node for the dropped file
+                    var fileNode = new TreeViewItem
+                    {
+                        Header = $"📎 {fileName}",
+                        Tag = externalEntry
+                    };
+
+                    var contextMenu = new ContextMenu();
+                    var removeMenuItem = new MenuItem
+                    {
+                        Header = "Remove",
+                        Tag = fileNode
+                    };
+                    removeMenuItem.Click += RemoveExternalFileMenuItem_Click;
+                    contextMenu.Items.Add(removeMenuItem);
+                    fileNode.ContextMenu = contextMenu;
+
+                    targetItem.Items.Add(fileNode);
+                    _externalFileMap[fileNode] = externalEntry;
+
+                    targetItem.IsExpanded = true;
+
+                    fileNode.IsSelected = true;
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error loading file '{Path.GetFileName(filePath)}':\n{ex.Message}",
+                                   "Error",
+                                   MessageBoxButton.OK,
+                                   MessageBoxImage.Error);
+                }
+            }
+
+            e.Handled = true;
+        }
+
+        private void RemoveExternalFileMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem menuItem || menuItem.Tag is not TreeViewItem treeViewItem)
+                return;
+
+            RemoveExternalFile(treeViewItem);
+        }
+
+        private void RemoveExternalFile(TreeViewItem treeViewItem)
+        {
+            if (!_externalFileMap.ContainsKey(treeViewItem))
+                return;
+
+            _externalFileMap.Remove(treeViewItem);
+
+            var parent = treeViewItem.Parent as TreeViewItem;
+            parent?.Items.Remove(treeViewItem);
+
+            ClearPreviewIfSelected(treeViewItem);
+        }
+
+        private void RemoveArchiveFileMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not MenuItem menuItem || menuItem.Tag is not TreeViewItem treeViewItem)
+                return;
+
+            RemoveArchiveFile(treeViewItem);
+        }
+
+        private void RemoveArchiveFile(TreeViewItem treeViewItem)
+        {
+            if (!_filePathMap.TryGetValue(treeViewItem, out var fileEntry))
+                return;
+
+            _deletedArchiveFiles.Add(fileEntry.RelativePath);
+
+            _filePathMap.Remove(treeViewItem);
+
+            var parent = treeViewItem.Parent as TreeViewItem;
+            parent?.Items.Remove(treeViewItem);
+
+            ClearPreviewIfSelected(treeViewItem);
+        }
+
+        private void ClearPreviewIfSelected(TreeViewItem treeViewItem)
+        {
+            if (treeViewItem.IsSelected)
+            {
+                _currentFileData = null;
+                _currentFileEntry = null;
+                ContentTextBox.Text = string.Empty;
+                FileInfoTextBlock.Text = "No file selected";
+                ViewTogglePanel.Visibility = Visibility.Collapsed;
+                TextScrollViewer.Visibility = Visibility.Visible;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
+            }
         }
 
         private void ExtractMenuItem_Click(object sender, RoutedEventArgs e)
@@ -778,6 +1111,49 @@ namespace Taview
                 {
                     PreviewViewButton.IsChecked = true;
                     DisplayFileContentInternal(fileEntry, fileData);
+                }
+            }
+            catch (Exception ex)
+            {
+                ContentTextBox.Text = $"Error reading file:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
+                TextScrollViewer.ScrollToHome();
+            }
+        }
+
+        private void DisplayExternalFileContent(ExternalFileEntry externalEntry)
+        {
+            try
+            {
+                FileInfoTextBlock.Text = $"External File: {externalEntry.RelativePath}";
+
+                var fileData = externalEntry.Data;
+
+                if (fileData == null || fileData.Length == 0)
+                {
+                    ContentTextBox.Text = "No file data available.";
+                    ViewTogglePanel.Visibility = Visibility.Collapsed;
+                    return;
+                }
+
+                var tempEntry = new HpiFileEntry
+                {
+                    RelativePath = externalEntry.RelativePath
+                };
+
+                _currentFileData = fileData;
+                _currentFileEntry = tempEntry;
+
+                ViewTogglePanel.Visibility = Visibility.Visible;
+
+                if (_isHexView)
+                {
+                    HexViewButton.IsChecked = true;
+                    ShowHexView();
+                }
+                else
+                {
+                    PreviewViewButton.IsChecked = true;
+                    DisplayFileContentInternal(tempEntry, fileData);
                 }
             }
             catch (Exception ex)

@@ -16,6 +16,9 @@
         <Menu Grid.Row="0">
             <MenuItem Header="_File">
                 <MenuItem Header="_Open" Click="OpenMenuItem_Click"/>
+                <MenuItem Header="_Save" Click="SaveMenuItem_Click" IsEnabled="False" x:Name="SaveMenuItem"/>
+                <MenuItem Header="Save _As..." Click="SaveAsMenuItem_Click" IsEnabled="False" x:Name="SaveAsMenuItem"/>
+                <Separator/>
                 <MenuItem Header="Extract _All..." Click="ExtractAllMenuItem_Click" IsEnabled="False" x:Name="ExtractAllMenuItem"/>
                 <Separator/>
                 <MenuItem Header="_Options..." Click="OptionsMenuItem_Click"/>
@@ -74,6 +77,10 @@
                      SelectedItemChanged="FileTreeView_SelectedItemChanged"
                      PreviewMouseLeftButtonDown="FileTreeView_PreviewMouseLeftButtonDown"
                      PreviewMouseMove="FileTreeView_PreviewMouseMove"
+                     PreviewKeyDown="FileTreeView_PreviewKeyDown"
+                     AllowDrop="True"
+                     DragOver="FileTreeView_DragOver"
+                     Drop="FileTreeView_Drop"
                      BorderThickness="0">
                 <TreeView.Resources>
                     <Style TargetType="TreeViewItem">

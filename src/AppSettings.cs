@@ -25,6 +25,7 @@ namespace Taview
         public string FontFamily { get; set; } = "Consolas";
         public double FontSize { get; set; } = 12;
         public bool EnableTntCaching { get; set; } = true;
+        public bool AutoFitTnt { get; set; } = true;
 
         private static readonly string SettingsFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

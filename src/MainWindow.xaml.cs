@@ -1439,6 +1439,11 @@ namespace Taview
                     {
                         FileInfoTextBlock.Text = imageInfo;
                     }
+
+                    if (extension == ".tnt" && AppSettings.Instance.AutoFitTnt)
+                    {
+                        AutoFitImage(bitmapImage);
+                    }
                 }
                 else
                 {
@@ -1457,6 +1462,32 @@ namespace Taview
                 ContentTextBox.Text = $"Error displaying image:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                 TextScrollViewer.ScrollToHome();
             }
+        }
+
+        private void AutoFitImage(BitmapSource image)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                var viewportWidth = ImageScrollViewer.ActualWidth;
+                var viewportHeight = ImageScrollViewer.ActualHeight;
+
+                if (viewportWidth <= 0 || viewportHeight <= 0)
+                    return;
+
+                var imageWidth = image.PixelWidth;
+                var imageHeight = image.PixelHeight;
+
+                if (imageWidth <= 0 || imageHeight <= 0)
+                    return;
+
+                var zoomX = viewportWidth / imageWidth;
+                var zoomY = viewportHeight / imageHeight;
+                var zoom = Math.Min(zoomX, zoomY);
+
+                zoom = Math.Max(ZoomSlider.Minimum, Math.Min(ZoomSlider.Maximum, zoom));
+
+                ZoomSlider.Value = zoom;
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
         }
 
         private void DisplayGafFrame()

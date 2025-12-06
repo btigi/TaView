@@ -19,6 +19,7 @@ namespace Taview
         private DefaultViewOption _selectedDefaultView;
         private string _selectedFontFamily;
         private double _selectedFontSize;
+        private bool _enableTntCaching;
 
         public OptionsWindow()
         {
@@ -42,6 +43,9 @@ namespace Taview
 
             _selectedFontSize = AppSettings.Instance.FontSize;
             SelectFontSize(_selectedFontSize);
+
+            _enableTntCaching = AppSettings.Instance.EnableTntCaching;
+            TntCachingCheckBox.IsChecked = _enableTntCaching;
         }
 
         private void PopulateFontList()
@@ -135,12 +139,18 @@ namespace Taview
             }
         }
 
+        private void TntCachingCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            _enableTntCaching = TntCachingCheckBox.IsChecked == true;
+        }
+
         private void OkButton_Click(object sender, RoutedEventArgs e)
         {
             AppSettings.Instance.Theme = _selectedTheme;
             AppSettings.Instance.DefaultView = _selectedDefaultView;
             AppSettings.Instance.FontFamily = _selectedFontFamily;
             AppSettings.Instance.FontSize = _selectedFontSize;
+            AppSettings.Instance.EnableTntCaching = _enableTntCaching;
             AppSettings.Instance.Save();
 
             // Apply theme

@@ -76,6 +76,7 @@ namespace Taview
         private Dictionary<TreeViewItem, HpiFileEntry> _filePathMap = new();
         private Dictionary<TreeViewItem, ExternalFileEntry> _externalFileMap = new();
         private HashSet<string> _deletedArchiveFiles = new(StringComparer.OrdinalIgnoreCase);
+        private Dictionary<string, BitmapSource> _tntImageCache = new(StringComparer.OrdinalIgnoreCase);
         private string? _currentHpiFilePath;
         private HpiArchive? _currentArchive;
         private HpiProcessor? _currentHpiProcessor;
@@ -419,6 +420,7 @@ namespace Taview
         {
             _currentHpiFilePath = filePath;
             _deletedArchiveFiles.Clear();
+            _tntImageCache.Clear();
             ContentTextBox.Text = string.Empty;
             FileInfoTextBlock.Text = $"File: {Path.GetFileName(filePath)}";
             Title = $"{Path.GetFileName(filePath)} - TAView";
@@ -1372,45 +1374,60 @@ namespace Taview
                 }
                 else if (extension == ".tnt")
                 {
-                    var tntProcessor = new TntProcessor();
+                    var cacheKey = _currentFileEntry?.RelativePath ?? "";
+                    var cachingEnabled = AppSettings.Instance.EnableTntCaching;
 
-                    // Assume PALETTE.PAL in is exe directory
-                    var exeDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-                    var palettePath = Path.Combine(exeDirectory ?? "", "PALETTE.PAL");
-
-                    if (!File.Exists(palettePath))
+                    if (cachingEnabled && !string.IsNullOrEmpty(cacheKey) && _tntImageCache.TryGetValue(cacheKey, out var cachedImage))
                     {
-                        imageInfo = "TNT File: PALETTE.PAL not found in exe directory";
+                        bitmapImage = cachedImage;
+                        imageInfo = $"TNT Map (cached)";
                     }
                     else
                     {
-                        try
+                        var tntProcessor = new TntProcessor();
+
+                        var exeDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+                        var palettePath = Path.Combine(exeDirectory ?? "", "PALETTE.PAL");
+
+                        if (!File.Exists(palettePath))
                         {
-                            var paletteBytes = File.ReadAllBytes(palettePath);
-                            var palette = new ii.CompleteDestruction.Model.Tnt.TaPalette(paletteBytes);
-
-                            var tntFile = tntProcessor.Read(imageData, palette);
-
-                            if (tntFile != null && tntFile.Map != null)
+                            imageInfo = "TNT File: PALETTE.PAL not found in exe directory";
+                        }
+                        else
+                        {
+                            try
                             {
-                                if (tntFile.Map is Image<Rgba32> rgbaMap)
+                                var paletteBytes = File.ReadAllBytes(palettePath);
+                                var palette = new ii.CompleteDestruction.Model.Tnt.TaPalette(paletteBytes);
+
+                                var tntFile = tntProcessor.Read(imageData, palette);
+
+                                if (tntFile != null && tntFile.Map != null)
                                 {
-                                    bitmapImage = ConvertImageSharpRgba32ToBitmapImage(rgbaMap);
+                                    if (tntFile.Map is Image<Rgba32> rgbaMap)
+                                    {
+                                        bitmapImage = ConvertImageSharpRgba32ToBitmapImage(rgbaMap);
+                                    }
+                                    else
+                                    {
+                                        bitmapImage = ConvertImageSharpToBitmapImage(tntFile.Map);
+                                    }
+                                    imageInfo = $"TNT Map: {tntFile.Map.Width}x{tntFile.Map.Height}";
+
+                                    if (cachingEnabled && bitmapImage != null && !string.IsNullOrEmpty(cacheKey))
+                                    {
+                                        _tntImageCache[cacheKey] = bitmapImage;
+                                    }
                                 }
                                 else
                                 {
-                                    bitmapImage = ConvertImageSharpToBitmapImage(tntFile.Map);
+                                    imageInfo = "TNT File: Map not available";
                                 }
-                                imageInfo = $"TNT Map: {tntFile.Map.Width}x{tntFile.Map.Height}";
                             }
-                            else
+                            catch (Exception ex)
                             {
-                                imageInfo = "TNT File: Map not available";
+                                imageInfo = $"TNT File: Error loading - {ex.Message}";
                             }
-                        }
-                        catch (Exception ex)
-                        {
-                            imageInfo = $"TNT File: Error loading - {ex.Message}";
                         }
                     }
                 }

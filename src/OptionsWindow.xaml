@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -103,8 +104,16 @@
             </ComboBox>
         </Grid>
 
+        <CheckBox x:Name="TntCachingCheckBox"
+                 Grid.Row="4"
+                 Content="Cache TNT map images"
+                 Margin="0,0,0,15"
+                 Checked="TntCachingCheckBox_Changed"
+                 Unchecked="TntCachingCheckBox_Changed"
+                 Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+
         <!-- Buttons -->
-        <StackPanel Grid.Row="5" 
+        <StackPanel Grid.Row="6" 
                    Orientation="Horizontal" 
                    HorizontalAlignment="Right">
             <Button Content="OK" 

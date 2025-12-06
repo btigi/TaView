@@ -728,6 +728,8 @@ namespace Taview
 
         private void FileTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
+            StopAudio();
+
             if (e.NewValue is TreeViewItem selectedItem)
             {
                 if (_filePathMap.TryGetValue(selectedItem, out var fileEntry))

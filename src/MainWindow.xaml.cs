@@ -1259,6 +1259,7 @@ namespace Taview
                         case ".gui":
                         case ".ota":
                         case ".txt":
+                        case ".bat":
                         case ".ini":
                         case ".cfg":
                         case ".bos":

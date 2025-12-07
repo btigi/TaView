@@ -1143,8 +1143,12 @@ namespace Taview
 
                 if (fileData == null || fileData.Length == 0)
                 {
-                    ContentTextBox.Text = "Could not read file data from HPI archive.";
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    ImageContentGrid.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = "(empty file)";
                     ViewTogglePanel.Visibility = Visibility.Collapsed;
+                    TextScrollViewer.ScrollToHome();
                     return;
                 }
 
@@ -1184,8 +1188,12 @@ namespace Taview
 
                 if (fileData == null || fileData.Length == 0)
                 {
-                    ContentTextBox.Text = "No file data available.";
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    ImageContentGrid.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = "(empty file)";
                     ViewTogglePanel.Visibility = Visibility.Collapsed;
+                    TextScrollViewer.ScrollToHome();
                     return;
                 }
 
@@ -1212,6 +1220,9 @@ namespace Taview
             }
             catch (Exception ex)
             {
+                TextScrollViewer.Visibility = Visibility.Visible;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
                 ContentTextBox.Text = $"Error reading file:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                 TextScrollViewer.ScrollToHome();
             }
@@ -1225,7 +1236,11 @@ namespace Taview
 
                 if (fileData == null || fileData.Length == 0)
                 {
-                    ContentTextBox.Text = "Could not read file data from archive.";
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    ImageContentGrid.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = "(empty file)";
+                    TextScrollViewer.ScrollToHome();
                     return;
                 }
 
@@ -1278,12 +1293,18 @@ namespace Taview
                 }
                 catch (Exception ex)
                 {
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    ImageContentGrid.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
                     ContentTextBox.Text = $"Error processing file:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                     TextScrollViewer.ScrollToHome();
                 }
             }
             catch (Exception ex)
             {
+                TextScrollViewer.Visibility = Visibility.Visible;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
                 ContentTextBox.Text = $"Error reading file:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                 TextScrollViewer.ScrollToHome();
             }

@@ -11,6 +11,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -112,6 +113,9 @@ namespace Taview
         public MainWindow(string? filePath = null)
         {
             InitializeComponent();
+
+            // Register code page encodings (required for .NET Core/.NET 5+)
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
 
             // Set up title bar theming
             ThemeManager.InitializeWindow(this);
@@ -1258,7 +1262,8 @@ namespace Taview
                         case ".ini":
                         case ".cfg":
                         case ".bos":
-                            content = System.Text.Encoding.UTF8.GetString(fileData);
+                            var encoding = Encoding.GetEncoding(1252);
+                            content  = encoding.GetString(fileData);
                             break;
 
                         default:

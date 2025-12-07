@@ -734,7 +734,7 @@ namespace Taview
 
         private void FileTreeView_SelectedItemChanged(object sender, RoutedPropertyChangedEventArgs<object> e)
         {
-            StopAudio();
+            StopAudio(disposeResources: true);
 
             if (e.NewValue is TreeViewItem selectedItem)
             {
@@ -1105,7 +1105,7 @@ namespace Taview
             if (_currentFileData == null || _currentFileEntry == null)
                 return;
 
-            StopAudio();
+            StopAudio(disposeResources: true);
 
             TextScrollViewer.Visibility = Visibility.Visible;
             ImageContentGrid.Visibility = Visibility.Collapsed;
@@ -1744,7 +1744,7 @@ namespace Taview
         {
             try
             {
-                StopAudio();
+                StopAudio(disposeResources: true);
 
                 TextScrollViewer.Visibility = Visibility.Collapsed;
                 ImageContentGrid.Visibility = Visibility.Collapsed;
@@ -1786,7 +1786,7 @@ namespace Taview
                 ContentTextBox.Text = $"Error loading audio:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                 TextScrollViewer.ScrollToHome();
 
-                StopAudio();
+                StopAudio(disposeResources: true);
                 PlayButton.IsEnabled = false;
                 PauseButton.IsEnabled = false;
                 StopButton.IsEnabled = false;
@@ -1846,7 +1846,7 @@ namespace Taview
             StopAudio();
         }
 
-        private void StopAudio()
+        private void StopAudio(bool disposeResources = false)
         {
             StopAudioPositionTimer();
 
@@ -1866,22 +1866,38 @@ namespace Taview
                 if (_waveOut != null)
                 {
                     _waveOut.Stop();
-                    _waveOut.Dispose();
-                    _waveOut = null;
+                    if (disposeResources)
+                    {
+                        _waveOut.Dispose();
+                        _waveOut = null;
+                    }
                 }
 
                 if (_waveStream != null)
                 {
-                    _waveStream.Dispose();
-                    _waveStream = null;
+                    if (disposeResources)
+                    {
+                        _waveStream.Dispose();
+                        _waveStream = null;
+                        _fadeOutProvider = null;
+                    }
+                    else
+                    {
+                        // Reset stream position for replay
+                        _waveStream.Position = 0;
+                        _fadeOutProvider?.Reset();
+                    }
                 }
-
-                _fadeOutProvider = null;
             }
             catch { }
 
             AudioPositionSlider.Value = 0;
             CurrentTimeTextBlock.Text = "00:00";
+
+            // Reset button states
+            PlayButton.IsEnabled = true;
+            PauseButton.IsEnabled = false;
+            StopButton.IsEnabled = false;
         }
 
         private void StartAudioPositionTimer()
@@ -2015,7 +2031,7 @@ namespace Taview
 
         protected override void OnClosed(EventArgs e)
         {
-            StopAudio();
+            StopAudio(disposeResources: true);
 
             base.OnClosed(e);
         }

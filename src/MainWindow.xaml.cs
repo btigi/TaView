@@ -12,6 +12,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -109,6 +110,9 @@ namespace Taview
         // Drag-drop state
         private System.Windows.Point _dragStartPoint;
         private bool _isDragging = false;
+
+        // Filter debouncing
+        private DispatcherTimer? _filterDebounceTimer;
 
         public MainWindow(string? filePath = null)
         {
@@ -420,38 +424,66 @@ namespace Taview
             }
         }
 
-        private void LoadHpiFile(string filePath)
+        private async void LoadHpiFile(string filePath)
         {
             _currentHpiFilePath = filePath;
             _deletedArchiveFiles.Clear();
             _tntImageCache.Clear();
             ContentTextBox.Text = string.Empty;
-            FileInfoTextBlock.Text = $"File: {Path.GetFileName(filePath)}";
+            FileInfoTextBlock.Text = $"Loading: {Path.GetFileName(filePath)}...";
             Title = $"{Path.GetFileName(filePath)} - TAView";
 
-            _currentHpiProcessor = new HpiProcessor();
-            var archive = _currentHpiProcessor.Read(filePath);
-            _currentArchive = archive;
+            ExtractAllMenuItem.IsEnabled = false;
+            SaveMenuItem.IsEnabled = false;
+            SaveAsMenuItem.IsEnabled = false;
+            FilterDropdownButton.IsEnabled = false;
 
-            if (archive == null || archive.Files == null || archive.Files.Count == 0)
+            try
             {
-                MessageBox.Show("No files found in HPI archive.",
-                               "Information",
-                               MessageBoxButton.OK,
-                               MessageBoxImage.Information);
-                FilterDropdownButton.IsEnabled = false;
-                return;
+                HpiArchive? archive = null;
+                HpiProcessor? processor = null;
+
+                await Task.Run(() =>
+                {
+                    processor = new HpiProcessor();
+                    archive = processor.Read(filePath);
+                });
+
+                _currentHpiProcessor = processor;
+                _currentArchive = archive;
+
+                if (archive == null || archive.Files == null || archive.Files.Count == 0)
+                {
+                    MessageBox.Show("No files found in HPI archive.",
+                                   "Information",
+                                   MessageBoxButton.OK,
+                                   MessageBoxImage.Information);
+                    FilterDropdownButton.IsEnabled = false;
+                    FileInfoTextBlock.Text = $"File: {Path.GetFileName(filePath)}";
+                    return;
+                }
+
+                FileInfoTextBlock.Text = $"File: {Path.GetFileName(filePath)}";
+
+                // Build file type filter
+                BuildFileTypeFilter();
+
+                // Enable menu items
+                ExtractAllMenuItem.IsEnabled = true;
+                SaveMenuItem.IsEnabled = true;
+                SaveAsMenuItem.IsEnabled = true;
+
+                // Build tree view (already async)
+                BuildTreeView();
             }
-
-            // Build file type filter
-            BuildFileTypeFilter();
-
-            // Enable menu items
-            ExtractAllMenuItem.IsEnabled = true;
-            SaveMenuItem.IsEnabled = true;
-            SaveAsMenuItem.IsEnabled = true;
-
-            BuildTreeView();
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading HPI file:\n{ex.Message}",
+                               "Error",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Error);
+                FileInfoTextBlock.Text = "Error loading file";
+            }
         }
 
         private void BuildFileTypeFilter()
@@ -549,7 +581,7 @@ namespace Taview
                 }
             }
 
-            BuildTreeView();
+            DebounceFilterChange();
         }
 
         private void FilterCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -566,8 +598,35 @@ namespace Taview
                 }
 
                 UpdateAllCheckboxState();
-                BuildTreeView();
+                DebounceFilterChange();
             }
+        }
+
+        private void DebounceFilterChange()
+        {
+            if (_filterDebounceTimer != null)
+            {
+                _filterDebounceTimer.Stop();
+                _filterDebounceTimer.Tick -= FilterDebounceTimer_Tick;
+            }
+
+            _filterDebounceTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(300)
+            };
+            _filterDebounceTimer.Tick += FilterDebounceTimer_Tick;
+            _filterDebounceTimer.Start();
+        }
+
+        private void FilterDebounceTimer_Tick(object? sender, EventArgs e)
+        {
+            if (_filterDebounceTimer != null)
+            {
+                _filterDebounceTimer.Stop();
+                _filterDebounceTimer.Tick -= FilterDebounceTimer_Tick;
+                _filterDebounceTimer = null;
+            }
+            BuildTreeView();
         }
 
         private void UpdateAllCheckboxState()
@@ -627,8 +686,6 @@ namespace Taview
                 Tag = "ROOT"
             };
 
-            var directoryMap = new Dictionary<string, TreeViewItem>();
-
             // Get files, optionally sorted and filtered
             var files = sortAlphabetically
                 ? _currentArchive.Files.OrderBy(f => f.RelativePath, StringComparer.OrdinalIgnoreCase).ToList()
@@ -644,68 +701,81 @@ namespace Taview
             // Filter out deleted files
             files = files.Where(f => !_deletedArchiveFiles.Contains(f.RelativePath)).ToList();
 
+            // Build tree asynchronously in batches to keep UI responsive
+            BuildTreeViewAsync(rootNode, files);
+        }
+
+        private async void BuildTreeViewAsync(TreeViewItem rootNode, List<HpiFileEntry> files)
+        {
+            const int batchSize = 100;
+            var directoryMap = new Dictionary<string, TreeViewItem>();
+
+            FileTreeView.Items.Add(rootNode);
+            rootNode.IsExpanded = true;
+
+            int processed = 0;
+
             foreach (var file in files)
             {
                 var parts = file.RelativePath.Split('\\', '/');
                 var currentPath = string.Empty;
                 TreeViewItem? parentNode = rootNode;
 
-                for (int i = 0; i < parts.Length; i++)
+                for (int i = 0; i < parts.Length - 1; i++)
                 {
                     var part = parts[i];
                     currentPath = string.IsNullOrEmpty(currentPath) ? part : $"{currentPath}\\{part}";
 
-                    if (i == parts.Length - 1)
+                    if (!directoryMap.ContainsKey(currentPath))
                     {
-                        // Note that this is a file
-                        var fileNode = new TreeViewItem
+                        var dirNode = new TreeViewItem
                         {
                             Header = part,
-                            Tag = file
+                            Tag = currentPath
                         };
-
-                        // Add context menu for files
-                        var contextMenu = new ContextMenu();
-                        var extractMenuItem = new MenuItem
-                        {
-                            Header = "Extract",
-                            Tag = fileNode
-                        };
-                        extractMenuItem.Click += ExtractMenuItem_Click;
-                        contextMenu.Items.Add(extractMenuItem);
-
-                        var removeMenuItem = new MenuItem
-                        {
-                            Header = "Remove",
-                            Tag = fileNode
-                        };
-                        removeMenuItem.Click += RemoveArchiveFileMenuItem_Click;
-                        contextMenu.Items.Add(removeMenuItem);
-
-                        fileNode.ContextMenu = contextMenu;
-
-                        parentNode.Items.Add(fileNode);
-                        _filePathMap[fileNode] = file;
+                        parentNode.Items.Add(dirNode);
+                        directoryMap[currentPath] = dirNode;
                     }
-                    else
-                    {
-                        if (!directoryMap.ContainsKey(currentPath))
-                        {
-                            var dirNode = new TreeViewItem
-                            {
-                                Header = part,
-                                Tag = currentPath
-                            };
-                            parentNode.Items.Add(dirNode);
-                            directoryMap[currentPath] = dirNode;
-                        }
-                        parentNode = directoryMap[currentPath];
-                    }
+                    parentNode = directoryMap[currentPath];
+                }
+
+                // Create file node with context menu
+                var fileNode = new TreeViewItem
+                {
+                    Header = parts[parts.Length - 1],
+                    Tag = file
+                };
+
+                // Add context menu for files
+                var contextMenu = new ContextMenu();
+                var extractMenuItem = new MenuItem
+                {
+                    Header = "Extract",
+                    Tag = fileNode
+                };
+                extractMenuItem.Click += ExtractMenuItem_Click;
+                contextMenu.Items.Add(extractMenuItem);
+
+                var removeMenuItem = new MenuItem
+                {
+                    Header = "Remove",
+                    Tag = fileNode
+                };
+                removeMenuItem.Click += RemoveArchiveFileMenuItem_Click;
+                contextMenu.Items.Add(removeMenuItem);
+
+                fileNode.ContextMenu = contextMenu;
+
+                parentNode.Items.Add(fileNode);
+                _filePathMap[fileNode] = file;
+
+                processed++;
+
+                if (processed % batchSize == 0)
+                {
+                    await Dispatcher.InvokeAsync(() => { }, DispatcherPriority.Background);
                 }
             }
-
-            FileTreeView.Items.Add(rootNode);
-            rootNode.IsExpanded = true;
 
             ScrollTreeViewToTop();
         }
@@ -1278,6 +1348,8 @@ namespace Taview
                         case ".ini":
                         case ".cfg":
                         case ".bos":
+                        case ".h":
+                        case ".pl":
                             var encoding = Encoding.GetEncoding(1252);
                             content  = encoding.GetString(fileData);
                             break;

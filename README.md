@@ -2,6 +2,8 @@
 
 TAView is an application for viewing HPI archive files from the 1997 game Total Annihilation, developed by Cavedog.
 
+![screenshot showing output](resources/screenshot1.png)
+
 ## Usage
 
 1. Click **File → Open** to select an HPI file (or pass a supported file as a command-line argument)

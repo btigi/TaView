@@ -1322,7 +1322,8 @@ namespace Taview
                     return;
                 }
 
-                if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".tnt")
+                if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".tnt" || 
+                    extension == ".jpg" || extension == ".jpeg" || extension == ".png")
                 {
                     DisplayImage(fileData, extension);
                     return;
@@ -1338,7 +1339,7 @@ namespace Taview
 
                     switch (extension)
                     {
-
+                        case ".tsf":
                         case ".tdf":
                         case ".fbi":
                         case ".gui":
@@ -1457,6 +1458,32 @@ namespace Taview
                     bmpImage.Freeze();
                     bitmapImage = bmpImage;
                     imageInfo = $"BMP Image";
+                }
+                else if (extension == ".jpg" || extension == ".jpeg")
+                {
+                    // Stream will be disposed when BitmapImage is garbage collected
+                    var memoryStream = new MemoryStream(imageData);
+                    var jpgImage = new BitmapImage();
+                    jpgImage.BeginInit();
+                    jpgImage.StreamSource = memoryStream;
+                    jpgImage.CacheOption = BitmapCacheOption.OnLoad;
+                    jpgImage.EndInit();
+                    jpgImage.Freeze();
+                    bitmapImage = jpgImage;
+                    imageInfo = $"JPEG Image: {jpgImage.PixelWidth}x{jpgImage.PixelHeight}";
+                }
+                else if (extension == ".png")
+                {
+                    // Stream will be disposed when BitmapImage is garbage collected
+                    var memoryStream = new MemoryStream(imageData);
+                    var pngImage = new BitmapImage();
+                    pngImage.BeginInit();
+                    pngImage.StreamSource = memoryStream;
+                    pngImage.CacheOption = BitmapCacheOption.OnLoad;
+                    pngImage.EndInit();
+                    pngImage.Freeze();
+                    bitmapImage = pngImage;
+                    imageInfo = $"PNG Image: {pngImage.PixelWidth}x{pngImage.PixelHeight}";
                 }
                 else if (extension == ".gaf")
                 {

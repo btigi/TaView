@@ -155,7 +155,7 @@ namespace Taview
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
             {
-                Filter = "Archive Files (*.hpi;*.ccx;*.gp3;*.ufo)|*.hpi;*.ccx;*.gp3;*.ufo|HPI Files (*.hpi)|*.hpi|CCX Files (*.ccx)|*.ccx|GP3 Files (*.gp3)|*.gp3|UFO Files (*.ufo)|*.ufo|All Files (*.*)|*.*",
+                Filter = "Archive Files (*.hpi;*.ccx;*.gp3;*.ufo;*.kmp)|*.hpi;*.ccx;*.gp3;*.ufo;*.kmp|HPI Files (*.hpi)|*.hpi|CCX Files (*.ccx)|*.ccx|GP3 Files (*.gp3)|*.gp3|UFO Files (*.ufo)|*.ufo|KMP Files (*.kmp)|*.kmp|All Files (*.*)|*.*",
                 Title = "Open Archive File"
             };
 

@@ -85,6 +85,9 @@ namespace Taview
         private string? _lastOpenFolder;
         private string? _lastSaveFolder;
 
+        // Terrain HPIs for TA:K
+        private List<HpiProcessor> _terrainHpiProcessors = new();
+
         // File type filter state
         private HashSet<string> _checkedExtensions = new(StringComparer.OrdinalIgnoreCase);
 
@@ -126,6 +129,10 @@ namespace Taview
 
             ApplyFontSettings();
             OptionsWindow.FontSettingsChanged += ApplyFontSettings;
+            OptionsWindow.TerrainHpiPathChanged += LoadTerrainHpi;
+
+            // Load terrain.hpi if configured
+            LoadTerrainHpi();
 
             // Load file if provided via command line
             if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
@@ -149,6 +156,36 @@ namespace Taview
             var settings = AppSettings.Instance;
             ContentTextBox.FontFamily = new FontFamily(settings.FontFamily);
             ContentTextBox.FontSize = settings.FontSize;
+        }
+
+        private void LoadTerrainHpi()
+        {
+            _terrainHpiProcessors.Clear();
+
+            var terrainPaths = AppSettings.Instance.TerrainHpiPaths;
+            if (terrainPaths == null || terrainPaths.Count == 0)
+            {
+                return;
+            }
+
+            foreach (var terrainPath in terrainPaths)
+            {
+                if (string.IsNullOrEmpty(terrainPath) || !File.Exists(terrainPath))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var processor = new HpiProcessor();
+                    processor.Read(terrainPath, quickRead: true);
+                    _terrainHpiProcessors.Add(processor);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error loading terrain HPI '{terrainPath}': {ex.Message}");
+                }
+            }
         }
 
         private void OpenMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1528,17 +1565,47 @@ namespace Taview
 
                                 var tntFile = tntProcessor.Read(imageData, palette);
 
-                                if (tntFile != null && tntFile.Map != null)
+                                if (tntFile != null)
                                 {
-                                    if (tntFile.Map is Image<Rgba32> rgbaMap)
+                                    var isV2 = tntFile.TerrainNames != null && tntFile.TerrainNames.Count > 0;
+                                    
+                                    if (isV2 && _terrainHpiProcessors.Count > 0)
                                     {
-                                        bitmapImage = ConvertImageSharpRgba32ToBitmapImage(rgbaMap);
+                                        var renderedMap = RenderTntV2WithTerrain(tntFile);
+                                        if (renderedMap != null)
+                                        {
+                                            bitmapImage = renderedMap;
+                                            imageInfo = $"TNT Map (Kingdoms): {tntFile.AttributeWidth * 16}x{tntFile.AttributeHeight * 16}";
+                                        }
+                                        else if (tntFile.Map != null)
+                                        {
+                                            if (tntFile.Map is Image<Rgba32> rgbaMap)
+                                            {
+                                                bitmapImage = ConvertImageSharpRgba32ToBitmapImage(rgbaMap);
+                                            }
+                                            else
+                                            {
+                                                bitmapImage = ConvertImageSharpToBitmapImage(tntFile.Map);
+                                            }
+                                            imageInfo = $"TNT Map (heightmap): {tntFile.Map.Width}x{tntFile.Map.Height}";
+                                        }
+                                    }
+                                    else if (tntFile.Map != null)
+                                    {
+                                        if (tntFile.Map is Image<Rgba32> rgbaMap)
+                                        {
+                                            bitmapImage = ConvertImageSharpRgba32ToBitmapImage(rgbaMap);
+                                        }
+                                        else
+                                        {
+                                            bitmapImage = ConvertImageSharpToBitmapImage(tntFile.Map);
+                                        }
+                                        imageInfo = $"TNT Map: {tntFile.Map.Width}x{tntFile.Map.Height}";
                                     }
                                     else
                                     {
-                                        bitmapImage = ConvertImageSharpToBitmapImage(tntFile.Map);
+                                        imageInfo = "TNT File: Map not available";
                                     }
-                                    imageInfo = $"TNT Map: {tntFile.Map.Width}x{tntFile.Map.Height}";
 
                                     if (cachingEnabled && bitmapImage != null && !string.IsNullOrEmpty(cacheKey))
                                     {
@@ -1859,6 +1926,141 @@ namespace Taview
 
                 return bitmapImage;
             }
+        }
+
+        private BitmapSource? RenderTntV2WithTerrain(TntFile tntFile)
+        {
+            if (_terrainHpiProcessors.Count == 0 || tntFile.TerrainNames == null || 
+                tntFile.UMapping == null || tntFile.VMapping == null)
+            {
+                return null;
+            }
+
+            try
+            {
+                const int GraphicUnitSize = 32;
+                const int DataUnitSize = 16;
+                const int TextureCellSize = 32; // Each UV cell is 32x32 in the 256x256 texture
+
+                // Calculate dimensions
+                var guWidth = tntFile.AttributeWidth * DataUnitSize / GraphicUnitSize;
+                var guHeight = tntFile.AttributeHeight * DataUnitSize / GraphicUnitSize;
+                var pixelWidth = guWidth * GraphicUnitSize;
+                var pixelHeight = guHeight * GraphicUnitSize;
+
+                var textureCache = new Dictionary<uint, Image<Rgba32>>();
+                var outputImage = new Image<Rgba32>(pixelWidth, pixelHeight);
+
+                for (var guY = 0; guY < guHeight; guY++)
+                {
+                    for (var guX = 0; guX < guWidth; guX++)
+                    {
+                        var guIndex = guY * guWidth + guX;
+                        if (guIndex >= tntFile.TerrainNames.Count)
+                            continue;
+
+                        var terrainName = tntFile.TerrainNames[guIndex];
+                        var u = tntFile.UMapping[guIndex];
+                        var v = tntFile.VMapping[guIndex];
+
+                        if (!textureCache.TryGetValue(terrainName, out var texture))
+                        {
+                            texture = LoadTerrainTexture(terrainName);
+                            if (texture != null)
+                            {
+                                textureCache[terrainName] = texture;
+                            }
+                        }
+
+                        if (texture == null)
+                            continue;
+
+                        // Calculate source position in texture (UV coords select 32x32 block)
+                        var srcX = u * TextureCellSize;
+                        var srcY = v * TextureCellSize;
+
+                        // Calculate destination position
+                        var destX = guX * GraphicUnitSize;
+                        var destY = guY * GraphicUnitSize;
+
+                        // Copy the 32x32 block from texture to output
+                        outputImage.ProcessPixelRows(texture, (destAccessor, srcAccessor) =>
+                        {
+                            for (int y = 0; y < GraphicUnitSize; y++)
+                            {
+                                var srcRowY = srcY + y;
+                                var destRowY = destY + y;
+
+                                if (srcRowY >= texture.Height || destRowY >= outputImage.Height)
+                                    continue;
+
+                                var srcRow = srcAccessor.GetRowSpan(srcRowY);
+                                var destRow = destAccessor.GetRowSpan(destRowY);
+
+                                for (int x = 0; x < GraphicUnitSize; x++)
+                                {
+                                    var srcColX = srcX + x;
+                                    var destColX = destX + x;
+
+                                    if (srcColX >= texture.Width || destColX >= outputImage.Width)
+                                        continue;
+
+                                    destRow[destColX] = srcRow[srcColX];
+                                }
+                            }
+                        });
+                    }
+                }
+
+                foreach (var texture in textureCache.Values)
+                {
+                    texture.Dispose();
+                }
+
+                var result = ConvertImageSharpRgba32ToBitmapImage(outputImage);
+                outputImage.Dispose();
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error rendering TNT V2 with terrain: {ex.Message}");
+                return null;
+            }
+        }
+
+        private Image<Rgba32>? LoadTerrainTexture(uint terrainName)
+        {
+            if (_terrainHpiProcessors.Count == 0)
+                return null;
+
+            var filename = $"{terrainName:X8}.JPG";
+            var relativePath = $"terrain\\{filename}";
+            var relativePathLower = $"terrain\\{filename.ToLowerInvariant()}";
+
+            foreach (var processor in _terrainHpiProcessors)
+            {
+                try
+                {
+                    var jpgData = processor.Extract(relativePath);
+                    if (jpgData == null || jpgData.Length == 0)
+                    {
+                        jpgData = processor.Extract(relativePathLower);
+                    }
+
+                    if (jpgData != null && jpgData.Length > 0)
+                    {
+                        using var ms = new MemoryStream(jpgData);
+                        return SixLabors.ImageSharp.Image.Load<Rgba32>(ms);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error extracting terrain texture {terrainName:X8} from HPI: {ex.Message}");
+                }
+            }
+
+            return null;
         }
 
         private void DisplayAudio(byte[] audioData, string extension)

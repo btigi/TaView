@@ -1,5 +1,6 @@
 using Microsoft.Win32;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
@@ -26,6 +27,7 @@ namespace Taview
         public double FontSize { get; set; } = 12;
         public bool EnableTntCaching { get; set; } = true;
         public bool AutoFitTnt { get; set; } = true;
+        public List<string> TerrainHpiPaths { get; set; } = new List<string>();
 
         private static readonly string SettingsFolder = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),

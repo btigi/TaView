@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -21,6 +22,7 @@ namespace Taview
         private double _selectedFontSize;
         private bool _enableTntCaching;
         private bool _autoFitTnt;
+        private List<string> _terrainHpiPaths;
 
         public OptionsWindow()
         {
@@ -50,6 +52,12 @@ namespace Taview
 
             _autoFitTnt = AppSettings.Instance.AutoFitTnt;
             AutoFitTntCheckBox.IsChecked = _autoFitTnt;
+
+            _terrainHpiPaths = new List<string>(AppSettings.Instance.TerrainHpiPaths);
+            foreach (var path in _terrainHpiPaths)
+            {
+                TerrainHpiListBox.Items.Add(path);
+            }
         }
 
         private void PopulateFontList()
@@ -153,6 +161,45 @@ namespace Taview
             _autoFitTnt = AutoFitTntCheckBox.IsChecked == true;
         }
 
+        private void AddTerrainHpiButton_Click(object sender, RoutedEventArgs e)
+        {
+            var dialog = new Microsoft.Win32.OpenFileDialog
+            {
+                Filter = "HPI Files (*.hpi)|*.hpi|All Files (*.*)|*.*",
+                Title = "Select Kingdoms Terrain HPI File"
+            };
+
+            // Set initial directory based on last added file
+            if (_terrainHpiPaths.Count > 0)
+            {
+                var lastPath = _terrainHpiPaths[_terrainHpiPaths.Count - 1];
+                var directory = System.IO.Path.GetDirectoryName(lastPath);
+                if (!string.IsNullOrEmpty(directory) && System.IO.Directory.Exists(directory))
+                {
+                    dialog.InitialDirectory = directory;
+                }
+            }
+
+            if (dialog.ShowDialog() == true)
+            {
+                // Don't add duplicates
+                if (!_terrainHpiPaths.Contains(dialog.FileName, StringComparer.OrdinalIgnoreCase))
+                {
+                    _terrainHpiPaths.Add(dialog.FileName);
+                    TerrainHpiListBox.Items.Add(dialog.FileName);
+                }
+            }
+        }
+
+        private void RemoveTerrainHpiButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (TerrainHpiListBox.SelectedItem is string selectedPath)
+            {
+                _terrainHpiPaths.Remove(selectedPath);
+                TerrainHpiListBox.Items.Remove(selectedPath);
+            }
+        }
+
         private void OkButton_Click(object sender, RoutedEventArgs e)
         {
             AppSettings.Instance.Theme = _selectedTheme;
@@ -161,6 +208,7 @@ namespace Taview
             AppSettings.Instance.FontSize = _selectedFontSize;
             AppSettings.Instance.EnableTntCaching = _enableTntCaching;
             AppSettings.Instance.AutoFitTnt = _autoFitTnt;
+            AppSettings.Instance.TerrainHpiPaths = new List<string>(_terrainHpiPaths);
             AppSettings.Instance.Save();
 
             // Apply theme
@@ -169,11 +217,15 @@ namespace Taview
             // Notify that font settings changed
             FontSettingsChanged?.Invoke();
 
+            // Notify that terrain HPI path changed
+            TerrainHpiPathChanged?.Invoke();
+
             DialogResult = true;
             Close();
         }
 
         public static event Action? FontSettingsChanged;
+        public static event Action? TerrainHpiPathChanged;
 
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {

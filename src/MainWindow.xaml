@@ -118,11 +118,24 @@
                                   VerticalAlignment="Center"
                                   Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
                         
-                        <!-- View toggle buttons -->
+                        <!-- View toggle buttons and palette selector -->
                         <StackPanel x:Name="ViewTogglePanel"
                                    Grid.Column="1" 
                                    Orientation="Horizontal"
                                    Visibility="Collapsed">
+                            <!-- Palette selector (for GAF/TNT files) -->
+                            <TextBlock x:Name="PaletteLabelTextBlock"
+                                      Text="Palette:"
+                                      VerticalAlignment="Center"
+                                      Margin="0,0,5,0"
+                                      Visibility="Collapsed"
+                                      Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+                            <ComboBox x:Name="PaletteComboBox"
+                                     MinWidth="150"
+                                     Margin="0,0,15,0"
+                                     Visibility="Collapsed"
+                                     SelectionChanged="PaletteComboBox_SelectionChanged"/>
+                            
                             <RadioButton x:Name="PreviewViewButton"
                                         Content="Preview"
                                         IsChecked="True"

@@ -97,6 +97,11 @@ namespace Taview
         private int _currentGafFrameIndex = 0;
         private byte[]? _currentGafFileData;
 
+        // Palette state
+        private List<string> _availablePalettes = new();
+        private string? _selectedPalettePath;
+        private bool _isPaletteChangeInProgress = false;
+
         // Current file view state
         private byte[]? _currentFileData;
         private HpiFileEntry? _currentFileEntry;
@@ -133,6 +138,9 @@ namespace Taview
 
             // Load terrain.hpi if configured
             LoadTerrainHpi();
+
+            // Populate palette dropdown
+            PopulatePaletteDropdown();
 
             // Load file if provided via command line
             if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath))
@@ -184,6 +192,72 @@ namespace Taview
                 catch (Exception ex)
                 {
                     System.Diagnostics.Debug.WriteLine($"Error loading terrain HPI '{terrainPath}': {ex.Message}");
+                }
+            }
+        }
+
+        private void PopulatePaletteDropdown()
+        {
+            _availablePalettes.Clear();
+            PaletteComboBox.Items.Clear();
+
+            var exeDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
+            var palettesFolder = Path.Combine(exeDirectory ?? "", "palettes");
+
+            if (!Directory.Exists(palettesFolder))
+            {
+                return;
+            }
+
+            var palFiles = Directory.GetFiles(palettesFolder, "*.pal", SearchOption.TopDirectoryOnly)
+                .OrderBy(f => Path.GetFileName(f), StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            foreach (var palFile in palFiles)
+            {
+                _availablePalettes.Add(palFile);
+                PaletteComboBox.Items.Add(Path.GetFileName(palFile));
+            }
+
+            // Select first palette by default if available
+            if (PaletteComboBox.Items.Count > 0)
+            {
+                PaletteComboBox.SelectedIndex = 0;
+                _selectedPalettePath = _availablePalettes[0];
+            }
+        }
+
+        private void ShowPaletteSelector(bool show)
+        {
+            var visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            PaletteLabelTextBlock.Visibility = visibility;
+            PaletteComboBox.Visibility = visibility;
+        }
+
+        private void PaletteComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_isPaletteChangeInProgress || PaletteComboBox.SelectedIndex < 0)
+                return;
+
+            if (PaletteComboBox.SelectedIndex < _availablePalettes.Count)
+            {
+                _selectedPalettePath = _availablePalettes[PaletteComboBox.SelectedIndex];
+
+                // Re-render the current file with the new palette
+                if (_currentFileData != null && _currentFileEntry != null)
+                {
+                    var extension = Path.GetExtension(_currentFileEntry.RelativePath).ToLower();
+                    if (extension == ".gaf" || extension == ".tnt")
+                    {
+                        // Clear cache for this file so it re-renders
+                        var cacheKey = _currentFileEntry.RelativePath;
+                        if (_tntImageCache.ContainsKey(cacheKey))
+                        {
+                            _tntImageCache.Remove(cacheKey);
+                        }
+
+                        DisplayImage(_currentFileData, extension);
+                    }
                 }
             }
         }
@@ -1265,7 +1339,7 @@ namespace Taview
 
                 // Show view toggle (maintain current view selection)
                 ViewTogglePanel.Visibility = Visibility.Visible;
-                
+
                 // Update radio button state to match current view
                 if (_isHexView)
                 {
@@ -1359,7 +1433,7 @@ namespace Taview
                     return;
                 }
 
-                if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".tnt" || 
+                if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".tnt" ||
                     extension == ".jpg" || extension == ".jpeg" || extension == ".png")
                 {
                     DisplayImage(fileData, extension);
@@ -1389,7 +1463,7 @@ namespace Taview
                         case ".h":
                         case ".pl":
                             var encoding = Encoding.GetEncoding(1252);
-                            content  = encoding.GetString(fileData);
+                            content = encoding.GetString(fileData);
                             break;
 
                         default:
@@ -1464,6 +1538,9 @@ namespace Taview
                 AudioContentGrid.Visibility = Visibility.Collapsed;
                 ImageContentGrid.Visibility = Visibility.Visible;
 
+                // Hide palette selector by default (GAF/TNT will show it)
+                ShowPaletteSelector(false);
+
                 if (extension != ".gaf")
                 {
                     _currentGafEntries = null;
@@ -1525,22 +1602,40 @@ namespace Taview
                 else if (extension == ".gaf")
                 {
                     _currentGafFileData = imageData;
+                    ShowPaletteSelector(true);
 
-                    var gafProcessor = new GafProcessor();
-                    var gafEntries = gafProcessor.Read(imageData);
-                    _currentGafEntries = gafEntries;
-                    _currentGafEntryIndex = 0;
-                    _currentGafFrameIndex = 0;
+                    if (string.IsNullOrEmpty(_selectedPalettePath) || !File.Exists(_selectedPalettePath))
+                    {
+                        imageInfo = "GAF File: No palette selected or palette file not found";
+                    }
+                    else
+                    {
+                        var paletteBytes = File.ReadAllBytes(_selectedPalettePath);
+                        var paletteProcessor = new PalProcessor();
+                        paletteProcessor.Load(paletteBytes);
 
-                    DisplayGafFrame();
+                        var gafProcessor = new GafProcessor();
+                        var gafEntries = gafProcessor.Read(imageData, paletteProcessor);
+                        _currentGafEntries = gafEntries;
+                        _currentGafEntryIndex = 0;
+                        _currentGafFrameIndex = 0;
+
+                        DisplayGafFrame();
+                    }
                     return;
                 }
                 else if (extension == ".tnt")
                 {
+                    ShowPaletteSelector(true);
+
                     var cacheKey = _currentFileEntry?.RelativePath ?? "";
                     var cachingEnabled = AppSettings.Instance.EnableTntCaching;
 
-                    if (cachingEnabled && !string.IsNullOrEmpty(cacheKey) && _tntImageCache.TryGetValue(cacheKey, out var cachedImage))
+                    // Include palette in cache key so different palettes have different cache entries
+                    var paletteName = Path.GetFileName(_selectedPalettePath ?? "");
+                    var fullCacheKey = $"{cacheKey}|{paletteName}";
+
+                    if (cachingEnabled && !string.IsNullOrEmpty(fullCacheKey) && _tntImageCache.TryGetValue(fullCacheKey, out var cachedImage))
                     {
                         bitmapImage = cachedImage;
                         imageInfo = $"TNT Map (cached)";
@@ -1549,26 +1644,24 @@ namespace Taview
                     {
                         var tntProcessor = new TntProcessor();
 
-                        var exeDirectory = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().Location);
-                        var palettePath = Path.Combine(exeDirectory ?? "", "PALETTE.PAL");
-
-                        if (!File.Exists(palettePath))
+                        if (string.IsNullOrEmpty(_selectedPalettePath) || !File.Exists(_selectedPalettePath))
                         {
-                            imageInfo = "TNT File: PALETTE.PAL not found in exe directory";
+                            imageInfo = "TNT File: No palette selected or palette file not found";
                         }
                         else
                         {
                             try
                             {
-                                var paletteBytes = File.ReadAllBytes(palettePath);
-                                var palette = new ii.CompleteDestruction.Model.Tnt.TaPalette(paletteBytes);
+                                var paletteBytes = File.ReadAllBytes(_selectedPalettePath);
+                                var paletteProcessor = new PalProcessor();
+                                paletteProcessor.Load(paletteBytes);
 
-                                var tntFile = tntProcessor.Read(imageData, palette);
+                                var tntFile = tntProcessor.Read(imageData, paletteProcessor);
 
                                 if (tntFile != null)
                                 {
                                     var isV2 = tntFile.TerrainNames != null && tntFile.TerrainNames.Count > 0;
-                                    
+
                                     if (isV2 && _terrainHpiProcessors.Count > 0)
                                     {
                                         var renderedMap = RenderTntV2WithTerrain(tntFile);
@@ -1607,9 +1700,9 @@ namespace Taview
                                         imageInfo = "TNT File: Map not available";
                                     }
 
-                                    if (cachingEnabled && bitmapImage != null && !string.IsNullOrEmpty(cacheKey))
+                                    if (cachingEnabled && bitmapImage != null && !string.IsNullOrEmpty(fullCacheKey))
                                     {
-                                        _tntImageCache[cacheKey] = bitmapImage;
+                                        _tntImageCache[fullCacheKey] = bitmapImage;
                                     }
                                 }
                                 else
@@ -1930,7 +2023,7 @@ namespace Taview
 
         private BitmapSource? RenderTntV2WithTerrain(TntFile tntFile)
         {
-            if (_terrainHpiProcessors.Count == 0 || tntFile.TerrainNames == null || 
+            if (_terrainHpiProcessors.Count == 0 || tntFile.TerrainNames == null ||
                 tntFile.UMapping == null || tntFile.VMapping == null)
             {
                 return null;

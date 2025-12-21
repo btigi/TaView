@@ -466,6 +466,12 @@ namespace Taview
             }
         }
 
+        private void UpdateSaveMenuItemState()
+        {
+            var hasModifications = _deletedArchiveFiles.Count > 0 || _externalFileMap.Count > 0;
+            SaveMenuItem.IsEnabled = !string.IsNullOrEmpty(_currentHpiFilePath) && hasModifications;
+        }
+
         private void SaveArchive(string outputPath)
         {
             if (_currentArchive == null || _currentHpiProcessor == null)
@@ -539,6 +545,7 @@ namespace Taview
         {
             _currentHpiFilePath = filePath;
             _deletedArchiveFiles.Clear();
+            _externalFileMap.Clear();
             _tntImageCache.Clear();
             ContentTextBox.Text = string.Empty;
             FileInfoTextBlock.Text = $"Loading: {Path.GetFileName(filePath)}...";
@@ -581,8 +588,8 @@ namespace Taview
 
                 // Enable menu items
                 ExtractAllMenuItem.IsEnabled = true;
-                SaveMenuItem.IsEnabled = true;
                 SaveAsMenuItem.IsEnabled = true;
+                UpdateSaveMenuItemState();
 
                 // Build tree view (already async)
                 BuildTreeView();
@@ -1127,6 +1134,8 @@ namespace Taview
                     targetItem.IsExpanded = true;
 
                     fileNode.IsSelected = true;
+                    
+                    UpdateSaveMenuItemState();
                 }
                 catch (Exception ex)
                 {
@@ -1159,6 +1168,7 @@ namespace Taview
             parent?.Items.Remove(treeViewItem);
 
             ClearPreviewIfSelected(treeViewItem);
+            UpdateSaveMenuItemState();
         }
 
         private void RemoveArchiveFileMenuItem_Click(object sender, RoutedEventArgs e)
@@ -1182,6 +1192,7 @@ namespace Taview
             parent?.Items.Remove(treeViewItem);
 
             ClearPreviewIfSelected(treeViewItem);
+            UpdateSaveMenuItemState();
         }
 
         private void ClearPreviewIfSelected(TreeViewItem treeViewItem)

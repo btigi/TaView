@@ -81,7 +81,9 @@
                      AllowDrop="True"
                      DragOver="FileTreeView_DragOver"
                      Drop="FileTreeView_Drop"
-                     BorderThickness="0">
+                     BorderThickness="0"
+                     VirtualizingStackPanel.IsVirtualizing="True"
+                     VirtualizingStackPanel.VirtualizationMode="Recycling">
                 <TreeView.Resources>
                     <Style TargetType="TreeViewItem">
                         <Setter Property="IsExpanded" Value="True"/>

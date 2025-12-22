@@ -1484,6 +1484,19 @@ namespace Taview
                             content = encoding.GetString(fileData);
                             break;
 
+                        case ".crt":
+                            try
+                            {
+                                var crtProcessor = new CrtProcessor();
+                                var crtFile = crtProcessor.Read(fileData);
+                                content = crtProcessor.ToJson(crtFile);
+                            }
+                            catch (Exception ex)
+                            {
+                                content = $"Error reading CRT file:\n{ex.Message}\n\nHex dump:\n\n{FormatHexDump(fileData, filePath)}";
+                            }
+                            break;
+
                         default:
                             content = FormatHexDump(fileData, filePath);
                             break;

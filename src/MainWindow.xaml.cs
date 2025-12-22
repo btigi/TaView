@@ -1,5 +1,6 @@
 using ii.CompleteDestruction;
 using ii.CompleteDestruction.Model.Hpi;
+using ii.CompleteDestruction.Model.Taf;
 using MahApps.Metro.Controls;
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
@@ -96,6 +97,12 @@ namespace Taview
         private int _currentGafEntryIndex = 0;
         private int _currentGafFrameIndex = 0;
         private byte[]? _currentGafFileData;
+
+        // TAF navigation state
+        private List<TafImageEntry>? _currentTafEntries;
+        private int _currentTafEntryIndex = 0;
+        private int _currentTafFrameIndex = 0;
+        private byte[]? _currentTafFileData;
 
         // Palette state
         private List<string> _availablePalettes = new();
@@ -247,7 +254,7 @@ namespace Taview
                 if (_currentFileData != null && _currentFileEntry != null)
                 {
                     var extension = Path.GetExtension(_currentFileEntry.RelativePath).ToLower();
-                    if (extension == ".gaf" || extension == ".tnt")
+                    if (extension == ".gaf" || extension == ".taf" || extension == ".tnt")
                     {
                         // Clear cache for this file so it re-renders
                         var cacheKey = _currentFileEntry.RelativePath;
@@ -1444,7 +1451,7 @@ namespace Taview
                     return;
                 }
 
-                if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".tnt" ||
+                if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".taf" || extension == ".tnt" ||
                     extension == ".jpg" || extension == ".jpeg" || extension == ".png")
                 {
                     DisplayImage(fileData, extension);
@@ -1549,13 +1556,23 @@ namespace Taview
                 AudioContentGrid.Visibility = Visibility.Collapsed;
                 ImageContentGrid.Visibility = Visibility.Visible;
 
-                // Hide palette selector by default (GAF/TNT will show it)
+                // Hide palette selector by default (GAF/TAF/TNT will show it)
                 ShowPaletteSelector(false);
 
                 if (extension != ".gaf")
                 {
                     _currentGafEntries = null;
                     _currentGafFileData = null;
+                }
+
+                if (extension != ".taf")
+                {
+                    _currentTafEntries = null;
+                    _currentTafFileData = null;
+                }
+
+                if (extension != ".gaf" && extension != ".taf")
+                {
                     PreviousFrameButton.Visibility = Visibility.Collapsed;
                     NextFrameButton.Visibility = Visibility.Collapsed;
                 }
@@ -1633,6 +1650,20 @@ namespace Taview
 
                         DisplayGafFrame();
                     }
+                    return;
+                }
+                else if (extension == ".taf")
+                {
+                    _currentTafFileData = imageData;
+                    ShowPaletteSelector(false);
+
+                    var tafProcessor = new TafProcessor();
+                    var tafEntries = tafProcessor.Read(imageData);
+                    _currentTafEntries = tafEntries;
+                    _currentTafEntryIndex = 0;
+                    _currentTafFrameIndex = 0;
+
+                    DisplayTafFrame();
                     return;
                 }
                 else if (extension == ".tnt")
@@ -1894,45 +1925,186 @@ namespace Taview
 
         private void PreviousFrameButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentGafEntries == null || _currentGafEntries.Count == 0)
-                return;
-
-            var currentEntry = _currentGafEntries[_currentGafEntryIndex];
-            _currentGafFrameIndex--;
-            if (_currentGafFrameIndex < 0)
+            if (_currentGafEntries != null && _currentGafEntries.Count > 0)
             {
-                _currentGafEntryIndex--;
-                if (_currentGafEntryIndex < 0)
+                var currentEntry = _currentGafEntries[_currentGafEntryIndex];
+                _currentGafFrameIndex--;
+                if (_currentGafFrameIndex < 0)
                 {
-                    _currentGafEntryIndex = _currentGafEntries.Count - 1;
+                    _currentGafEntryIndex--;
+                    if (_currentGafEntryIndex < 0)
+                    {
+                        _currentGafEntryIndex = _currentGafEntries.Count - 1;
+                    }
+
+                    currentEntry = _currentGafEntries[_currentGafEntryIndex];
+                    _currentGafFrameIndex = currentEntry.Frames?.Count - 1 ?? 0;
                 }
 
-                currentEntry = _currentGafEntries[_currentGafEntryIndex];
-                _currentGafFrameIndex = currentEntry.Frames?.Count - 1 ?? 0;
+                DisplayGafFrame();
             }
+            else if (_currentTafEntries != null && _currentTafEntries.Count > 0)
+            {
+                var currentEntry = _currentTafEntries[_currentTafEntryIndex];
+                _currentTafFrameIndex--;
+                if (_currentTafFrameIndex < 0)
+                {
+                    _currentTafEntryIndex--;
+                    if (_currentTafEntryIndex < 0)
+                    {
+                        _currentTafEntryIndex = _currentTafEntries.Count - 1;
+                    }
 
-            DisplayGafFrame();
+                    currentEntry = _currentTafEntries[_currentTafEntryIndex];
+                    _currentTafFrameIndex = currentEntry.Frames?.Count - 1 ?? 0;
+                }
+
+                DisplayTafFrame();
+            }
         }
 
         private void NextFrameButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentGafEntries == null || _currentGafEntries.Count == 0)
-                return;
-
-            var currentEntry = _currentGafEntries[_currentGafEntryIndex];
-            _currentGafFrameIndex++;
-            if (currentEntry.Frames == null || _currentGafFrameIndex >= currentEntry.Frames.Count)
+            if (_currentGafEntries != null && _currentGafEntries.Count > 0)
             {
-                _currentGafEntryIndex++;
-                if (_currentGafEntryIndex >= _currentGafEntries.Count)
+                var currentEntry = _currentGafEntries[_currentGafEntryIndex];
+                _currentGafFrameIndex++;
+                if (currentEntry.Frames == null || _currentGafFrameIndex >= currentEntry.Frames.Count)
                 {
-                    _currentGafEntryIndex = 0;
+                    _currentGafEntryIndex++;
+                    if (_currentGafEntryIndex >= _currentGafEntries.Count)
+                    {
+                        _currentGafEntryIndex = 0;
+                    }
+
+                    _currentGafFrameIndex = 0;
                 }
 
-                _currentGafFrameIndex = 0;
+                DisplayGafFrame();
+            }
+            else if (_currentTafEntries != null && _currentTafEntries.Count > 0)
+            {
+                var currentEntry = _currentTafEntries[_currentTafEntryIndex];
+                _currentTafFrameIndex++;
+                if (currentEntry.Frames == null || _currentTafFrameIndex >= currentEntry.Frames.Count)
+                {
+                    _currentTafEntryIndex++;
+                    if (_currentTafEntryIndex >= _currentTafEntries.Count)
+                    {
+                        _currentTafEntryIndex = 0;
+                    }
+
+                    _currentTafFrameIndex = 0;
+                }
+
+                DisplayTafFrame();
+            }
+        }
+
+        private void DisplayTafFrame()
+        {
+            ContentImage.Source = null;
+
+            if (ZoomSlider != null)
+            {
+                ZoomSlider.Value = 1.0;
+            }
+            if (ImageScaleTransform != null)
+            {
+                ImageScaleTransform.ScaleX = 1.0;
+                ImageScaleTransform.ScaleY = 1.0;
+            }
+            if (ZoomValueTextBlock != null)
+            {
+                ZoomValueTextBlock.Text = "100%";
             }
 
-            DisplayGafFrame();
+            if (_currentTafEntries == null || _currentTafEntries.Count == 0)
+            {
+                TextScrollViewer.Visibility = Visibility.Visible;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
+                ContentTextBox.Text = "TAF: No entries found";
+                TextScrollViewer.ScrollToHome();
+                return;
+            }
+
+            if (_currentTafEntryIndex >= _currentTafEntries.Count)
+                _currentTafEntryIndex = 0;
+
+            var currentEntry = _currentTafEntries[_currentTafEntryIndex];
+
+            if (currentEntry.Frames == null || currentEntry.Frames.Count == 0)
+            {
+                TextScrollViewer.Visibility = Visibility.Visible;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
+                ContentTextBox.Text = $"TAF: {currentEntry.Name}\nNo frames found";
+                TextScrollViewer.ScrollToHome();
+                PreviousFrameButton.Visibility = Visibility.Collapsed;
+                NextFrameButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            if (_currentTafFrameIndex >= currentEntry.Frames.Count)
+                _currentTafFrameIndex = 0;
+
+            var currentFrame = currentEntry.Frames[_currentTafFrameIndex];
+
+            if (currentFrame.Image != null)
+            {
+                BitmapSource? bitmapImage = null;
+
+                try
+                {
+                    if (currentFrame.Image is Image<Rgba32> rgbaImage)
+                    {
+                        bitmapImage = ConvertImageSharpRgba32ToBitmapImage(rgbaImage);
+                    }
+                    else
+                    {
+                        bitmapImage = ConvertImageSharpToBitmapImage(currentFrame.Image);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    ImageContentGrid.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = $"Error converting TAF frame:\n{ex.Message}";
+                    TextScrollViewer.ScrollToHome();
+                    return;
+                }
+
+                if (bitmapImage != null)
+                {
+                    TextScrollViewer.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    ImageContentGrid.Visibility = Visibility.Visible;
+
+                    ContentImage.Source = bitmapImage;
+
+                    var totalFrames = currentEntry.Frames.Count;
+                    var totalEntries = _currentTafEntries.Count;
+                    var pixelFormatStr = currentFrame.PixelFormat == TafPixelFormat.Argb1555 ? "ARGB1555" : "ARGB4444";
+                    FileInfoTextBlock.Text = $"TAF: {currentEntry.Name}\nEntry {_currentTafEntryIndex + 1}/{totalEntries}, Frame {_currentTafFrameIndex + 1}/{totalFrames}\nSize: {currentFrame.Image.Width}x{currentFrame.Image.Height}, Offset: ({currentFrame.XOffset}, {currentFrame.YOffset}), Format: {pixelFormatStr}";
+
+                    var hasMultipleFrames = totalFrames > 1;
+                    var hasMultipleEntries = totalEntries > 1;
+                    var showNavigation = hasMultipleFrames || hasMultipleEntries;
+
+                    PreviousFrameButton.Visibility = showNavigation ? Visibility.Visible : Visibility.Collapsed;
+                    NextFrameButton.Visibility = showNavigation ? Visibility.Visible : Visibility.Collapsed;
+                }
+                else
+                {
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    ImageContentGrid.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = "TAF: Could not convert frame to image";
+                    TextScrollViewer.ScrollToHome();
+                }
+            }
         }
 
         private void ZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)

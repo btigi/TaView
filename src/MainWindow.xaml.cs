@@ -3,7 +3,6 @@ using ii.CompleteDestruction.Model.Hpi;
 using ii.CompleteDestruction.Model.Taf;
 using MahApps.Metro.Controls;
 using NAudio.Wave;
-using NAudio.Wave.SampleProviders;
 using SixLabors.ImageSharp;
 using SixLabors.ImageSharp.Formats.Png;
 using SixLabors.ImageSharp.PixelFormats;
@@ -16,8 +15,10 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Media.Media3D;
 using System.Windows.Threading;
 
 namespace Taview
@@ -128,6 +129,13 @@ namespace Taview
 
         // Filter debouncing
         private DispatcherTimer? _filterDebounceTimer;
+
+        // 3D model state
+        private System.Windows.Point _lastMousePosition3D;
+        private bool _isRotating3D = false;
+        private double _rotationX3D = 0;
+        private double _rotationY3D = 0;
+        private double _initialCameraDistance = 500;
 
         public MainWindow(string? filePath = null)
         {
@@ -1214,6 +1222,7 @@ namespace Taview
                 TextScrollViewer.Visibility = Visibility.Visible;
                 ImageContentGrid.Visibility = Visibility.Collapsed;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
             }
         }
 
@@ -1309,6 +1318,7 @@ namespace Taview
             TextScrollViewer.Visibility = Visibility.Visible;
             ImageContentGrid.Visibility = Visibility.Collapsed;
             AudioContentGrid.Visibility = Visibility.Collapsed;
+            Model3DContentGrid.Visibility = Visibility.Collapsed;
 
             ContentTextBox.Text = FormatHexDump(_currentFileData, _currentFileEntry.RelativePath);
             TextScrollViewer.ScrollToHome();
@@ -1345,6 +1355,7 @@ namespace Taview
                     TextScrollViewer.Visibility = Visibility.Visible;
                     ImageContentGrid.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ContentTextBox.Text = "(empty file)";
                     ViewTogglePanel.Visibility = Visibility.Collapsed;
                     TextScrollViewer.ScrollToHome();
@@ -1390,6 +1401,7 @@ namespace Taview
                     TextScrollViewer.Visibility = Visibility.Visible;
                     ImageContentGrid.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ContentTextBox.Text = "(empty file)";
                     ViewTogglePanel.Visibility = Visibility.Collapsed;
                     TextScrollViewer.ScrollToHome();
@@ -1422,6 +1434,7 @@ namespace Taview
                 TextScrollViewer.Visibility = Visibility.Visible;
                 ImageContentGrid.Visibility = Visibility.Collapsed;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
                 ContentTextBox.Text = $"Error reading file:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                 TextScrollViewer.ScrollToHome();
             }
@@ -1438,6 +1451,7 @@ namespace Taview
                     TextScrollViewer.Visibility = Visibility.Visible;
                     ImageContentGrid.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ContentTextBox.Text = "(empty file)";
                     TextScrollViewer.ScrollToHome();
                     return;
@@ -1451,6 +1465,12 @@ namespace Taview
                     return;
                 }
 
+                if (extension == ".3do")
+                {
+                    Display3DModel(fileData, extension);
+                    return;
+                }
+
                 if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".taf" || extension == ".tnt" ||
                     extension == ".jpg" || extension == ".jpeg" || extension == ".png")
                 {
@@ -1461,6 +1481,7 @@ namespace Taview
                 TextScrollViewer.Visibility = Visibility.Visible;
                 ImageContentGrid.Visibility = Visibility.Collapsed;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
 
                 try
                 {
@@ -1511,6 +1532,7 @@ namespace Taview
                     TextScrollViewer.Visibility = Visibility.Visible;
                     ImageContentGrid.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ContentTextBox.Text = $"Error processing file:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                     TextScrollViewer.ScrollToHome();
                 }
@@ -1520,6 +1542,7 @@ namespace Taview
                 TextScrollViewer.Visibility = Visibility.Visible;
                 ImageContentGrid.Visibility = Visibility.Collapsed;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
                 ContentTextBox.Text = $"Error reading file:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                 TextScrollViewer.ScrollToHome();
             }
@@ -1567,6 +1590,7 @@ namespace Taview
 
                 TextScrollViewer.Visibility = Visibility.Collapsed;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
                 ImageContentGrid.Visibility = Visibility.Visible;
 
                 // Hide palette selector by default (GAF/TAF/TNT will show it)
@@ -1791,6 +1815,7 @@ namespace Taview
                     TextScrollViewer.Visibility = Visibility.Visible;
                     ImageContentGrid.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ContentTextBox.Text = $"Could not display image: {extension}\n\n{imageInfo ?? ""}";
                     TextScrollViewer.ScrollToHome();
                 }
@@ -1800,6 +1825,7 @@ namespace Taview
                 TextScrollViewer.Visibility = Visibility.Visible;
                 ImageContentGrid.Visibility = Visibility.Collapsed;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
                 ContentTextBox.Text = $"Error displaying image:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                 TextScrollViewer.ScrollToHome();
             }
@@ -1854,6 +1880,7 @@ namespace Taview
                 TextScrollViewer.Visibility = Visibility.Visible;
                 ImageContentGrid.Visibility = Visibility.Collapsed;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
                 ContentTextBox.Text = "GAF: No entries found";
                 TextScrollViewer.ScrollToHome();
                 return;
@@ -1901,6 +1928,7 @@ namespace Taview
                     TextScrollViewer.Visibility = Visibility.Visible;
                     ImageContentGrid.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ContentTextBox.Text = $"Error converting GAF frame:\n{ex.Message}";
                     TextScrollViewer.ScrollToHome();
                     return;
@@ -1910,6 +1938,7 @@ namespace Taview
                 {
                     TextScrollViewer.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ImageContentGrid.Visibility = Visibility.Visible;
 
                     ContentImage.Source = bitmapImage;
@@ -2037,6 +2066,7 @@ namespace Taview
                 TextScrollViewer.Visibility = Visibility.Visible;
                 ImageContentGrid.Visibility = Visibility.Collapsed;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
                 ContentTextBox.Text = "TAF: No entries found";
                 TextScrollViewer.ScrollToHome();
                 return;
@@ -2084,6 +2114,7 @@ namespace Taview
                     TextScrollViewer.Visibility = Visibility.Visible;
                     ImageContentGrid.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ContentTextBox.Text = $"Error converting TAF frame:\n{ex.Message}";
                     TextScrollViewer.ScrollToHome();
                     return;
@@ -2093,6 +2124,7 @@ namespace Taview
                 {
                     TextScrollViewer.Visibility = Visibility.Collapsed;
                     AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
                     ImageContentGrid.Visibility = Visibility.Visible;
 
                     ContentImage.Source = bitmapImage;
@@ -2395,6 +2427,7 @@ namespace Taview
             {
                 TextScrollViewer.Visibility = Visibility.Visible;
                 AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
                 ContentTextBox.Text = $"Error loading audio:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
                 TextScrollViewer.ScrollToHome();
 
@@ -2639,6 +2672,225 @@ namespace Taview
             }
 
             return sb.ToString();
+        }
+
+        private void Display3DModel(byte[] modelData, string extension)
+        {
+            try
+            {
+                StopAudio(disposeResources: true);
+
+                TextScrollViewer.Visibility = Visibility.Collapsed;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Visible;
+
+                var processor = new ThreeDOProcessor();
+                var threeDOFile = processor.Read(modelData);
+
+                if (threeDOFile?.RootObject == null)
+                {
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = "Error: Could not parse 3DO file";
+                    TextScrollViewer.ScrollToHome();
+                    return;
+                }
+
+                var model3DGroup = ThreeDOConverter.ConvertToModel3DGroup(threeDOFile.RootObject);
+
+                if (model3DGroup.Children.Count == 0)
+                {
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = "3DO file contains no renderable geometry";
+                    TextScrollViewer.ScrollToHome();
+                    return;
+                }
+
+                // Calculate model bounds to center and scale
+                var bounds = CalculateModelBounds(model3DGroup);
+                var center = new Point3D(
+                    (bounds.Item1.X + bounds.Item2.X) / 2,
+                    (bounds.Item1.Y + bounds.Item2.Y) / 2,
+                    (bounds.Item1.Z + bounds.Item2.Z) / 2
+                );
+
+                // Center
+                var centerTransform = new TranslateTransform3D(-center.X, -center.Y, -center.Z);
+                model3DGroup.Transform = centerTransform;
+
+                // Camera distance
+                var size = new Vector3D(
+                    bounds.Item2.X - bounds.Item1.X,
+                    bounds.Item2.Y - bounds.Item1.Y,
+                    bounds.Item2.Z - bounds.Item1.Z
+                );
+                var maxDimension = Math.Max(Math.Max(size.X, size.Y), size.Z);
+                _initialCameraDistance = maxDimension * 2.5;
+
+                // Reset camera
+                _rotationX3D = AppSettings.Instance.Model3DDefaultRotationX;
+                _rotationY3D = AppSettings.Instance.Model3DDefaultRotationY;
+                ResetCamera3D();
+
+                var rotateTransformGroup = new Transform3DGroup();
+                rotateTransformGroup.Children.Add(centerTransform);
+                rotateTransformGroup.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), _rotationX3D)));
+                rotateTransformGroup.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 1, 0), _rotationY3D)));
+                model3DGroup.Transform = rotateTransformGroup;
+
+                Model3DContainer.Content = model3DGroup;
+
+                Model3DViewport.MouseLeftButtonDown += Model3DViewport_MouseLeftButtonDown;
+                Model3DViewport.MouseMove += Model3DViewport_MouseMove;
+                Model3DViewport.MouseLeftButtonUp += Model3DViewport_MouseLeftButtonUp;
+                Model3DViewport.MouseWheel += Model3DViewport_MouseWheel;
+
+                UpdateModel3DRotation();
+
+                FileInfoTextBlock.Text = ThreeDOConverter.GetModelInfo(threeDOFile);
+            }
+            catch (Exception ex)
+            {
+                TextScrollViewer.Visibility = Visibility.Visible;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
+                ContentTextBox.Text = $"Error displaying 3D model:\n{ex.Message}\n\nStack trace:\n{ex.StackTrace}";
+                TextScrollViewer.ScrollToHome();
+            }
+        }
+
+        private (Point3D, Point3D) CalculateModelBounds(Model3DGroup modelGroup)
+        {
+            double minX = double.MaxValue, minY = double.MaxValue, minZ = double.MaxValue;
+            double maxX = double.MinValue, maxY = double.MinValue, maxZ = double.MinValue;
+
+            foreach (var child in modelGroup.Children)
+            {
+                if (child is GeometryModel3D geometryModel && geometryModel.Geometry is MeshGeometry3D mesh)
+                {
+                    foreach (var position in mesh.Positions)
+                    {
+                        minX = Math.Min(minX, position.X);
+                        minY = Math.Min(minY, position.Y);
+                        minZ = Math.Min(minZ, position.Z);
+                        maxX = Math.Max(maxX, position.X);
+                        maxY = Math.Max(maxY, position.Y);
+                        maxZ = Math.Max(maxZ, position.Z);
+                    }
+                }
+            }
+
+            return (new Point3D(minX, minY, minZ), new Point3D(maxX, maxY, maxZ));
+        }
+
+        private void ResetCamera3D()
+        {
+            if (Camera3D != null)
+            {
+                Camera3D.Position = new Point3D(0, 0, _initialCameraDistance);
+                Camera3D.LookDirection = new Vector3D(0, 0, -1);
+                Camera3D.UpDirection = new Vector3D(0, 1, 0);
+                Camera3D.FieldOfView = 60;
+
+                if (Model3DZoomSlider != null)
+                {
+                    Model3DZoomSlider.Value = 1.0;
+                    Model3DZoomSlider.Minimum = 0.1;
+                    Model3DZoomSlider.Maximum = 10.0;
+                }
+            }
+        }
+
+        private void ResetCameraButton_Click(object sender, RoutedEventArgs e)
+        {
+            _rotationX3D = AppSettings.Instance.Model3DDefaultRotationX;
+            _rotationY3D = AppSettings.Instance.Model3DDefaultRotationY;
+            ResetCamera3D();
+            UpdateModel3DRotation();
+        }
+
+        private void Model3DZoomSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (Camera3D != null && _initialCameraDistance > 0)
+            {
+                var cameraDistance = _initialCameraDistance / e.NewValue;
+                Camera3D.Position = new Point3D(0, 0, cameraDistance);
+
+                if (Model3DZoomValueTextBlock != null)
+                {
+                    var zoomPercent = (int)(e.NewValue * 100);
+                    Model3DZoomValueTextBlock.Text = $"{zoomPercent}%";
+                }
+            }
+        }
+
+        private void Model3DViewport_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            _isRotating3D = true;
+            _lastMousePosition3D = e.GetPosition(Model3DViewport);
+            Model3DViewport.CaptureMouse();
+        }
+
+        private void Model3DViewport_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (_isRotating3D && e.LeftButton == MouseButtonState.Pressed)
+            {
+                var currentPosition = e.GetPosition(Model3DViewport);
+                var delta = currentPosition - _lastMousePosition3D;
+
+                _rotationY3D += delta.X * 0.5;
+                _rotationX3D += delta.Y * 0.5;
+
+                // Keep rotation in reasonable bounds
+                _rotationX3D = Math.Max(-89, Math.Min(89, _rotationX3D));
+
+                UpdateModel3DRotation();
+
+                _lastMousePosition3D = currentPosition;
+            }
+        }
+
+        private void Model3DViewport_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            _isRotating3D = false;
+            Model3DViewport.ReleaseMouseCapture();
+        }
+
+        private void Model3DViewport_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            if (Model3DZoomSlider != null)
+            {
+                var delta = e.Delta > 0 ? 0.05 : -0.05;
+                var newValue = Model3DZoomSlider.Value + delta;
+                newValue = Math.Max(Model3DZoomSlider.Minimum, Math.Min(Model3DZoomSlider.Maximum, newValue));
+                Model3DZoomSlider.Value = newValue;
+            }
+        }
+
+        private void UpdateModel3DRotation()
+        {
+            if (Model3DContainer.Content is Model3DGroup modelGroup)
+            {
+                var transforms = new Transform3DGroup();
+
+                if (modelGroup.Transform is Transform3DGroup existingGroup && existingGroup.Children.Count > 0)
+                {
+                    transforms.Children.Add(existingGroup.Children[0]); // Keep center transform
+                }
+                else if (modelGroup.Transform is TranslateTransform3D existingTranslate)
+                {
+                    transforms.Children.Add(existingTranslate);
+                }
+
+                transforms.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(1, 0, 0), _rotationX3D)));
+                transforms.Children.Add(new RotateTransform3D(new AxisAngleRotation3D(new Vector3D(0, 1, 0), _rotationY3D)));
+
+                modelGroup.Transform = transforms;
+            }
+
+            RotationXValueTextBlock?.Text = $"{_rotationX3D:F1}°";
+            RotationYValueTextBlock?.Text = $"{_rotationY3D:F1}°";
         }
 
         protected override void OnClosed(EventArgs e)

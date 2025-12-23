@@ -23,6 +23,8 @@ namespace Taview
         private bool _enableTntCaching;
         private bool _autoFitTnt;
         private List<string> _terrainHpiPaths;
+        private double _model3DDefaultRotationX;
+        private double _model3DDefaultRotationY;
 
         public OptionsWindow()
         {
@@ -58,6 +60,14 @@ namespace Taview
             {
                 TerrainHpiListBox.Items.Add(path);
             }
+
+            _model3DDefaultRotationX = AppSettings.Instance.Model3DDefaultRotationX;
+            Model3DRotationXSlider.Value = _model3DDefaultRotationX;
+            Model3DRotationXValueTextBlock.Text = $"{_model3DDefaultRotationX:F0}°";
+
+            _model3DDefaultRotationY = AppSettings.Instance.Model3DDefaultRotationY;
+            Model3DRotationYSlider.Value = _model3DDefaultRotationY;
+            Model3DRotationYValueTextBlock.Text = $"{_model3DDefaultRotationY:F0}°";
         }
 
         private void PopulateFontList()
@@ -161,6 +171,26 @@ namespace Taview
             _autoFitTnt = AutoFitTntCheckBox.IsChecked == true;
         }
 
+        private void Model3DRotationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (sender == Model3DRotationXSlider)
+            {
+                _model3DDefaultRotationX = e.NewValue;
+                if (Model3DRotationXValueTextBlock != null)
+                {
+                    Model3DRotationXValueTextBlock.Text = $"{_model3DDefaultRotationX:F0}°";
+                }
+            }
+            else if (sender == Model3DRotationYSlider)
+            {
+                _model3DDefaultRotationY = e.NewValue;
+                if (Model3DRotationYValueTextBlock != null)
+                {
+                    Model3DRotationYValueTextBlock.Text = $"{_model3DDefaultRotationY:F0}°";
+                }
+            }
+        }
+
         private void AddTerrainHpiButton_Click(object sender, RoutedEventArgs e)
         {
             var dialog = new Microsoft.Win32.OpenFileDialog
@@ -209,6 +239,8 @@ namespace Taview
             AppSettings.Instance.EnableTntCaching = _enableTntCaching;
             AppSettings.Instance.AutoFitTnt = _autoFitTnt;
             AppSettings.Instance.TerrainHpiPaths = new List<string>(_terrainHpiPaths);
+            AppSettings.Instance.Model3DDefaultRotationX = _model3DDefaultRotationX;
+            AppSettings.Instance.Model3DDefaultRotationY = _model3DDefaultRotationY;
             AppSettings.Instance.Save();
 
             // Apply theme

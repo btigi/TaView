@@ -27,6 +27,7 @@ namespace Taview
         public double FontSize { get; set; } = 12;
         public bool EnableTntCaching { get; set; } = true;
         public bool AutoFitTnt { get; set; } = true;
+        public bool AutoExpandTreeNodes { get; set; } = true;
         public List<string> TerrainHpiPaths { get; set; } = new List<string>();
         public double Model3DDefaultRotationX { get; set; } = 0;
         public double Model3DDefaultRotationY { get; set; } = 180;

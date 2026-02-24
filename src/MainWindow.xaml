@@ -84,12 +84,7 @@
                      BorderThickness="0"
                      VirtualizingStackPanel.IsVirtualizing="True"
                      VirtualizingStackPanel.VirtualizationMode="Recycling">
-                <TreeView.Resources>
-                    <Style TargetType="TreeViewItem">
-                        <Setter Property="IsExpanded" Value="True"/>
-                    </Style>
-                </TreeView.Resources>
-            </TreeView>
+                </TreeView>
 
             <!-- Splitter -->
             <GridSplitter Grid.Column="1" 

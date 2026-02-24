@@ -22,6 +22,7 @@ namespace Taview
         private double _selectedFontSize;
         private bool _enableTntCaching;
         private bool _autoFitTnt;
+        private bool _autoExpandTreeNodes;
         private List<string> _terrainHpiPaths;
         private double _model3DDefaultRotationX;
         private double _model3DDefaultRotationY;
@@ -54,6 +55,9 @@ namespace Taview
 
             _autoFitTnt = AppSettings.Instance.AutoFitTnt;
             AutoFitTntCheckBox.IsChecked = _autoFitTnt;
+
+            _autoExpandTreeNodes = AppSettings.Instance.AutoExpandTreeNodes;
+            AutoExpandTreeNodesCheckBox.IsChecked = _autoExpandTreeNodes;
 
             _terrainHpiPaths = new List<string>(AppSettings.Instance.TerrainHpiPaths);
             foreach (var path in _terrainHpiPaths)
@@ -171,6 +175,11 @@ namespace Taview
             _autoFitTnt = AutoFitTntCheckBox.IsChecked == true;
         }
 
+        private void AutoExpandTreeNodesCheckBox_Changed(object sender, RoutedEventArgs e)
+        {
+            _autoExpandTreeNodes = AutoExpandTreeNodesCheckBox.IsChecked == true;
+        }
+
         private void Model3DRotationSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             if (sender == Model3DRotationXSlider)
@@ -238,6 +247,7 @@ namespace Taview
             AppSettings.Instance.FontSize = _selectedFontSize;
             AppSettings.Instance.EnableTntCaching = _enableTntCaching;
             AppSettings.Instance.AutoFitTnt = _autoFitTnt;
+            AppSettings.Instance.AutoExpandTreeNodes = _autoExpandTreeNodes;
             AppSettings.Instance.TerrainHpiPaths = new List<string>(_terrainHpiPaths);
             AppSettings.Instance.Model3DDefaultRotationX = _model3DDefaultRotationX;
             AppSettings.Instance.Model3DDefaultRotationY = _model3DDefaultRotationY;

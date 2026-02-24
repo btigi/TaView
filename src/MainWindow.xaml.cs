@@ -846,6 +846,8 @@ namespace Taview
             FileTreeView.Items.Add(rootNode);
             rootNode.IsExpanded = true;
 
+            var autoExpand = AppSettings.Instance.AutoExpandTreeNodes;
+
             int processed = 0;
 
             foreach (var file in files)
@@ -864,7 +866,8 @@ namespace Taview
                         var dirNode = new TreeViewItem
                         {
                             Header = part,
-                            Tag = currentPath
+                            Tag = currentPath,
+                            IsExpanded = autoExpand
                         };
                         parentNode.Items.Add(dirNode);
                         directoryMap[currentPath] = dirNode;

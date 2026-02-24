@@ -2,11 +2,12 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Options" 
-        Height="620" Width="450"
+        Height="640" Width="450"
         WindowStartupLocation="CenterOwner"
         ResizeMode="NoResize">
     <Grid Margin="20">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -123,14 +124,22 @@
                  Unchecked="AutoFitTntCheckBox_Changed"
                  Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
 
+        <CheckBox x:Name="AutoExpandTreeNodesCheckBox"
+                 Grid.Row="6"
+                 Content="Expand all tree nodes when opening a file"
+                 Margin="0,0,0,15"
+                 Checked="AutoExpandTreeNodesCheckBox_Changed"
+                 Unchecked="AutoExpandTreeNodesCheckBox_Changed"
+                 Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
+
         <!-- 3D Model default rotations -->
-        <TextBlock Grid.Row="6" 
+        <TextBlock Grid.Row="7" 
                   Text="3D Model Default Rotations:" 
                   FontWeight="Bold"
                   Margin="0,5,0,10"
                   Foreground="{DynamicResource MahApps.Brushes.ThemeForeground}"/>
 
-        <Grid Grid.Row="6" Margin="0,25,0,0">
+        <Grid Grid.Row="7" Margin="0,25,0,0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -189,7 +198,7 @@
         </Grid>
 
         <!-- Terrain HPI files -->
-        <Grid Grid.Row="7" Margin="0,0,0,15">
+        <Grid Grid.Row="8" Margin="0,0,0,15">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="100"/>
@@ -229,7 +238,7 @@
         </Grid>
 
         <!-- Buttons -->
-        <StackPanel Grid.Row="9" 
+        <StackPanel Grid.Row="10" 
                    Orientation="Horizontal" 
                    HorizontalAlignment="Right">
             <Button Content="OK" 

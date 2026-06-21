@@ -1,5 +1,6 @@
 using ii.CompleteDestruction;
 using ii.CompleteDestruction.Model.Hpi;
+using ii.CompleteDestruction.Model.Sct;
 using ii.CompleteDestruction.Model.Taf;
 using MahApps.Metro.Controls;
 using NAudio.Wave;
@@ -104,6 +105,10 @@ namespace Taview
         private int _currentTafEntryIndex = 0;
         private int _currentTafFrameIndex = 0;
         private byte[]? _currentTafFileData;
+
+        // SCT navigation state
+        private SctFile? _currentSctFile;
+        private bool _sctShowingMinimap = false;
 
         // Palette state
         private List<string> _availablePalettes = new();
@@ -262,7 +267,7 @@ namespace Taview
                 if (_currentFileData != null && _currentFileEntry != null)
                 {
                     var extension = Path.GetExtension(_currentFileEntry.RelativePath).ToLower();
-                    if (extension == ".gaf" || extension == ".taf" || extension == ".tnt")
+                    if (extension == ".gaf" || extension == ".taf" || extension == ".tnt" || extension == ".sct")
                     {
                         // Clear cache for this file so it re-renders
                         var cacheKey = _currentFileEntry.RelativePath;
@@ -1475,7 +1480,7 @@ namespace Taview
                 }
 
                 if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".taf" || extension == ".tnt" ||
-                    extension == ".jpg" || extension == ".jpeg" || extension == ".png")
+                    extension == ".sct" || extension == ".jpg" || extension == ".jpeg" || extension == ".png")
                 {
                     DisplayImage(fileData, extension);
                     return;
@@ -1576,6 +1581,7 @@ namespace Taview
             try
             {
                 ContentImage.Source = null;
+                ResetImageScrollPosition();
 
                 if (ZoomSlider != null)
                 {
@@ -1596,7 +1602,7 @@ namespace Taview
                 Model3DContentGrid.Visibility = Visibility.Collapsed;
                 ImageContentGrid.Visibility = Visibility.Visible;
 
-                // Hide palette selector by default (GAF/TAF/TNT will show it)
+                // Hide palette selector by default (GAF/TNT/SCT will show it)
                 ShowPaletteSelector(false);
 
                 if (extension != ".gaf")
@@ -1611,7 +1617,12 @@ namespace Taview
                     _currentTafFileData = null;
                 }
 
-                if (extension != ".gaf" && extension != ".taf")
+                if (extension != ".sct")
+                {
+                    _currentSctFile = null;
+                }
+
+                if (extension != ".gaf" && extension != ".taf" && extension != ".sct")
                 {
                     PreviousFrameButton.Visibility = Visibility.Collapsed;
                     NextFrameButton.Visibility = Visibility.Collapsed;
@@ -1799,6 +1810,38 @@ namespace Taview
                         }
                     }
                 }
+                else if (extension == ".sct")
+                {
+                    ShowPaletteSelector(true);
+
+                    if (string.IsNullOrEmpty(_selectedPalettePath) || !File.Exists(_selectedPalettePath))
+                    {
+                        imageInfo = "SCT File: No palette selected or palette file not found";
+                    }
+                    else
+                    {
+                        try
+                        {
+                            var paletteBytes = File.ReadAllBytes(_selectedPalettePath);
+                            var paletteProcessor = new PalProcessor();
+                            paletteProcessor.Load(paletteBytes);
+
+                            var sctProcessor = new SctProcessor();
+                            _currentSctFile = sctProcessor.Read(imageData, paletteProcessor);
+                            _sctShowingMinimap = false;
+                            DisplaySctView();
+                        }
+                        catch (Exception ex)
+                        {
+                            imageInfo = $"SCT File: Error loading - {ex.Message}";
+                        }
+                    }
+
+                    if (_currentSctFile != null)
+                    {
+                        return;
+                    }
+                }
 
                 if (bitmapImage != null)
                 {
@@ -1854,10 +1897,19 @@ namespace Taview
                 var zoomY = viewportHeight / imageHeight;
                 var zoom = Math.Min(zoomX, zoomY);
 
+                // Fit within the viewport; never upscale smaller images
+                zoom = Math.Min(1.0, zoom);
                 zoom = Math.Max(ZoomSlider.Minimum, Math.Min(ZoomSlider.Maximum, zoom));
 
                 ZoomSlider.Value = zoom;
+                ResetImageScrollPosition();
             }), System.Windows.Threading.DispatcherPriority.Loaded);
+        }
+
+        private void ResetImageScrollPosition()
+        {
+            ImageScrollViewer.ScrollToHorizontalOffset(0);
+            ImageScrollViewer.ScrollToVerticalOffset(0);
         }
 
         private void DisplayGafFrame()
@@ -2006,6 +2058,11 @@ namespace Taview
 
                 DisplayTafFrame();
             }
+            else if (_currentSctFile != null)
+            {
+                _sctShowingMinimap = false;
+                DisplaySctView();
+            }
         }
 
         private void NextFrameButton_Click(object sender, RoutedEventArgs e)
@@ -2043,6 +2100,11 @@ namespace Taview
                 }
 
                 DisplayTafFrame();
+            }
+            else if (_currentSctFile != null)
+            {
+                _sctShowingMinimap = true;
+                DisplaySctView();
             }
         }
 
@@ -2152,6 +2214,90 @@ namespace Taview
                     ContentTextBox.Text = "TAF: Could not convert frame to image";
                     TextScrollViewer.ScrollToHome();
                 }
+            }
+        }
+
+        private void DisplaySctView()
+        {
+            if (_currentSctFile == null)
+            {
+                return;
+            }
+
+            ContentImage.Source = null;
+            ResetImageScrollPosition();
+
+            if (ZoomSlider != null)
+            {
+                ZoomSlider.Value = 1.0;
+            }
+            if (ImageScaleTransform != null)
+            {
+                ImageScaleTransform.ScaleX = 1.0;
+                ImageScaleTransform.ScaleY = 1.0;
+            }
+            if (ZoomValueTextBlock != null)
+            {
+                ZoomValueTextBlock.Text = "100%";
+            }
+
+            var image = _sctShowingMinimap ? _currentSctFile.Minimap : _currentSctFile.Map;
+            if (image == null)
+            {
+                TextScrollViewer.Visibility = Visibility.Visible;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
+                ContentTextBox.Text = "SCT: Image not available";
+                TextScrollViewer.ScrollToHome();
+                PreviousFrameButton.Visibility = Visibility.Collapsed;
+                NextFrameButton.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            BitmapSource? bitmapImage;
+            try
+            {
+                if (image is Image<Rgba32> rgbaImage)
+                {
+                    bitmapImage = ConvertImageSharpRgba32ToBitmapImage(rgbaImage);
+                }
+                else
+                {
+                    bitmapImage = ConvertImageSharpToBitmapImage(image);
+                }
+            }
+            catch (Exception ex)
+            {
+                TextScrollViewer.Visibility = Visibility.Visible;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
+                ContentTextBox.Text = $"Error converting SCT image:\n{ex.Message}";
+                TextScrollViewer.ScrollToHome();
+                return;
+            }
+
+            TextScrollViewer.Visibility = Visibility.Collapsed;
+            AudioContentGrid.Visibility = Visibility.Collapsed;
+            Model3DContentGrid.Visibility = Visibility.Collapsed;
+            ImageContentGrid.Visibility = Visibility.Visible;
+
+            ContentImage.Source = bitmapImage;
+
+            var viewName = _sctShowingMinimap ? "Minimap" : "Map";
+            FileInfoTextBlock.Text = $"SCT {viewName}: {image.Width}x{image.Height}";
+
+            PreviousFrameButton.Visibility = Visibility.Visible;
+            NextFrameButton.Visibility = Visibility.Visible;
+
+            if (!_sctShowingMinimap && AppSettings.Instance.AutoFitTnt)
+            {
+                AutoFitImage(bitmapImage);
+            }
+            else
+            {
+                ResetImageScrollPosition();
             }
         }
 

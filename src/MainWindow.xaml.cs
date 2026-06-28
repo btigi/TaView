@@ -1526,6 +1526,19 @@ namespace Taview
                             }
                             break;
 
+                        case ".scc":
+                            try
+                            {
+                                var sccProcessor = new SccProcessor();
+                                var sccFile = sccProcessor.Read(fileData);
+                                content = sccProcessor.ToJson(sccFile);
+                            }
+                            catch (Exception ex)
+                            {
+                                content = $"Error reading SCC file:\n{ex.Message}\n\nHex dump:\n\n{FormatHexDump(fileData, filePath)}";
+                            }
+                            break;
+
                         default:
                             content = FormatHexDump(fileData, filePath);
                             break;

@@ -1480,7 +1480,7 @@ namespace Taview
                 }
 
                 if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".taf" || extension == ".tnt" ||
-                    extension == ".sct" || extension == ".jpg" || extension == ".jpeg" || extension == ".png")
+                    extension == ".sct" || extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".fnt")
                 {
                     DisplayImage(fileData, extension);
                     return;
@@ -1840,6 +1840,19 @@ namespace Taview
                     if (_currentSctFile != null)
                     {
                         return;
+                    }
+                }
+                else if (extension == ".fnt")
+                {
+                    try
+                    {
+                        var (fntBitmap, fntInfo) = RenderFntPreview(imageData);
+                        bitmapImage = fntBitmap;
+                        imageInfo = fntInfo;
+                    }
+                    catch (Exception ex)
+                    {
+                        imageInfo = $"FNT File: Error loading - {ex.Message}";
                     }
                 }
 
@@ -2313,6 +2326,114 @@ namespace Taview
                     ZoomValueTextBlock.Text = $"{(int)(e.NewValue * 100)}%";
                 }
             }
+        }
+
+        private (BitmapSource? Bitmap, string Info) RenderFntPreview(byte[] data)
+        {
+            const int columns = 16;
+            const int columnGap = 1;
+            const int rows = 256 / columns;
+
+            var processor = new FntProcessor();
+            var (fontHeight, flags, glyphs) = processor.Read(data);
+
+            try
+            {
+                var columnWidths = new int[columns];
+                for (var ch = 0; ch < 256; ch++)
+                {
+                    var col = ch % columns;
+                    var glyph = glyphs[ch];
+                    if (glyph != null && glyph.Width > columnWidths[col])
+                    {
+                        columnWidths[col] = glyph.Width;
+                    }
+                }
+
+                var totalWidth = 0;
+                for (var c = 0; c < columns; c++)
+                {
+                    if (c > 0)
+                    {
+                        totalWidth += columnGap;
+                    }
+
+                    totalWidth += columnWidths[c];
+                }
+
+                var totalHeight = fontHeight * rows;
+                if (totalWidth <= 0 || totalHeight <= 0)
+                {
+                    return (null, "FNT File: No glyphs to display");
+                }
+
+                using var output = new Image<Rgba32>(totalWidth, totalHeight);
+                output.ProcessPixelRows(accessor =>
+                {
+                    for (var y = 0; y < totalHeight; y++)
+                    {
+                        accessor.GetRowSpan(y).Fill(new Rgba32(32, 32, 32, 255));
+                    }
+                });
+
+                for (var ch = 0; ch < 256; ch++)
+                {
+                    var glyph = glyphs[ch];
+                    if (glyph == null)
+                    {
+                        continue;
+                    }
+
+                    var col = ch % columns;
+                    var row = ch / columns;
+
+                    var x = 0;
+                    for (var c = 0; c < col; c++)
+                    {
+                        x += columnWidths[c] + columnGap;
+                    }
+
+                    var y = row * fontHeight;
+                    BlitGlyphOnto(output, glyph, x, y);
+                }
+
+                var glyphCount = glyphs.Count(g => g != null);
+                var info = $"FNT Font: {fontHeight}px, flags=0x{flags:X4}, {glyphCount} glyphs, {totalWidth}x{totalHeight} preview";
+                return (ConvertImageSharpRgba32ToBitmapImage(output), info);
+            }
+            finally
+            {
+                foreach (var glyph in glyphs)
+                {
+                    glyph?.Dispose();
+                }
+            }
+        }
+
+        private static void BlitGlyphOnto(Image<Rgba32> dest, SixLabors.ImageSharp.Image glyph, int destX, int destY)
+        {
+            if (glyph is not Image<Rgba32> rgbaGlyph)
+            {
+                using var cloned = glyph.CloneAs<Rgba32>();
+                BlitGlyphOnto(dest, cloned, destX, destY);
+                return;
+            }
+
+            rgbaGlyph.ProcessPixelRows(accessor =>
+            {
+                for (var y = 0; y < rgbaGlyph.Height; y++)
+                {
+                    var srcRow = accessor.GetRowSpan(y);
+                    for (var x = 0; x < rgbaGlyph.Width; x++)
+                    {
+                        var pixel = srcRow[x];
+                        if (pixel.A > 0)
+                        {
+                            dest[destX + x, destY + y] = pixel;
+                        }
+                    }
+                }
+            });
         }
 
         private BitmapImage? ConvertPcxToBitmapImage(object? pcxImage)

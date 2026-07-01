@@ -1,5 +1,7 @@
 using ii.CompleteDestruction;
+using ii.CompleteDestruction.Model.Gax;
 using ii.CompleteDestruction.Model.Hpi;
+using ii.CompleteDestruction.Model.Pco;
 using ii.CompleteDestruction.Model.Sct;
 using ii.CompleteDestruction.Model.Taf;
 using MahApps.Metro.Controls;
@@ -105,6 +107,11 @@ namespace Taview
         private int _currentTafEntryIndex = 0;
         private int _currentTafFrameIndex = 0;
         private byte[]? _currentTafFileData;
+
+        // GAO/GAO2 navigation state
+        private List<GaxImage>? _currentGaxImages;
+        private int _currentGaxImageIndex = 0;
+        private string _currentGaxExtension = string.Empty;
 
         // SCT navigation state
         private SctFile? _currentSctFile;
@@ -1480,7 +1487,8 @@ namespace Taview
                 }
 
                 if (extension == ".pcx" || extension == ".bmp" || extension == ".gaf" || extension == ".taf" || extension == ".tnt" ||
-                    extension == ".sct" || extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".fnt")
+                    extension == ".sct" || extension == ".jpg" || extension == ".jpeg" || extension == ".png" || extension == ".fnt" ||
+                    extension == ".gao" || extension == ".gao2" || extension == ".pco")
                 {
                     DisplayImage(fileData, extension);
                     return;
@@ -1630,12 +1638,18 @@ namespace Taview
                     _currentTafFileData = null;
                 }
 
+                if (extension != ".gao" && extension != ".gao2")
+                {
+                    ClearGaxImages();
+                }
+
                 if (extension != ".sct")
                 {
                     _currentSctFile = null;
                 }
 
-                if (extension != ".gaf" && extension != ".taf" && extension != ".sct")
+                if (extension != ".gaf" && extension != ".taf" && extension != ".sct" &&
+                    extension != ".gao" && extension != ".gao2")
                 {
                     PreviousFrameButton.Visibility = Visibility.Collapsed;
                     NextFrameButton.Visibility = Visibility.Collapsed;
@@ -1868,6 +1882,51 @@ namespace Taview
                         imageInfo = $"FNT File: Error loading - {ex.Message}";
                     }
                 }
+                else if (extension == ".pco")
+                {
+                    try
+                    {
+                        var pcoProcessor = new PcoProcessor();
+                        var pcoFile = pcoProcessor.Read(imageData);
+                        var (pcoBitmap, pcoInfo) = RenderPcoPreview(pcoFile);
+                        bitmapImage = pcoBitmap;
+                        imageInfo = pcoInfo;
+                    }
+                    catch (Exception ex)
+                    {
+                        imageInfo = $"PCO File: Error loading - {ex.Message}";
+                    }
+                }
+                else if (extension == ".gao" || extension == ".gao2")
+                {
+                    ClearGaxImages();
+
+                    var pcoData = FindCompanionFileData(_currentFileEntry?.RelativePath ?? "", ".pco");
+                    if (pcoData == null)
+                    {
+                        imageInfo = $"{extension.ToUpperInvariant()} File: Companion PCO file not found";
+                    }
+                    else
+                    {
+                        try
+                        {
+                            var pcoProcessor = new PcoProcessor();
+                            var pcoFile = pcoProcessor.Read(pcoData);
+                            var gaxProcessor = new GaxProcessor();
+                            _currentGaxImages = gaxProcessor.Read(imageData, pcoFile);
+                            _currentGaxImageIndex = 0;
+                            _currentGaxExtension = extension;
+                            DisplayGaxFrame();
+                        }
+                        catch (Exception ex)
+                        {
+                            ClearGaxImages();
+                            imageInfo = $"{extension.ToUpperInvariant()} File: Error loading - {ex.Message}";
+                        }
+                    }
+
+                    return;
+                }
 
                 if (bitmapImage != null)
                 {
@@ -2084,6 +2143,16 @@ namespace Taview
 
                 DisplayTafFrame();
             }
+            else if (_currentGaxImages != null && _currentGaxImages.Count > 0)
+            {
+                _currentGaxImageIndex--;
+                if (_currentGaxImageIndex < 0)
+                {
+                    _currentGaxImageIndex = _currentGaxImages.Count - 1;
+                }
+
+                DisplayGaxFrame();
+            }
             else if (_currentSctFile != null)
             {
                 _sctShowingMinimap = false;
@@ -2127,10 +2196,110 @@ namespace Taview
 
                 DisplayTafFrame();
             }
+            else if (_currentGaxImages != null && _currentGaxImages.Count > 0)
+            {
+                _currentGaxImageIndex++;
+                if (_currentGaxImageIndex >= _currentGaxImages.Count)
+                {
+                    _currentGaxImageIndex = 0;
+                }
+
+                DisplayGaxFrame();
+            }
             else if (_currentSctFile != null)
             {
                 _sctShowingMinimap = true;
                 DisplaySctView();
+            }
+        }
+
+        private void DisplayGaxFrame()
+        {
+            ContentImage.Source = null;
+
+            if (ZoomSlider != null)
+            {
+                ZoomSlider.Value = 1.0;
+            }
+            if (ImageScaleTransform != null)
+            {
+                ImageScaleTransform.ScaleX = 1.0;
+                ImageScaleTransform.ScaleY = 1.0;
+            }
+            if (ZoomValueTextBlock != null)
+            {
+                ZoomValueTextBlock.Text = "100%";
+            }
+
+            if (_currentGaxImages == null || _currentGaxImages.Count == 0)
+            {
+                TextScrollViewer.Visibility = Visibility.Visible;
+                ImageContentGrid.Visibility = Visibility.Collapsed;
+                AudioContentGrid.Visibility = Visibility.Collapsed;
+                Model3DContentGrid.Visibility = Visibility.Collapsed;
+                ContentTextBox.Text = $"{_currentGaxExtension.ToUpperInvariant()}: No images found";
+                TextScrollViewer.ScrollToHome();
+                return;
+            }
+
+            if (_currentGaxImageIndex >= _currentGaxImages.Count)
+            {
+                _currentGaxImageIndex = 0;
+            }
+
+            var currentImage = _currentGaxImages[_currentGaxImageIndex];
+
+            if (currentImage.Image != null)
+            {
+                BitmapSource? bitmapImage = null;
+
+                try
+                {
+                    if (currentImage.Image is Image<Rgba32> rgbaImage)
+                    {
+                        bitmapImage = ConvertImageSharpRgba32ToBitmapImage(rgbaImage);
+                    }
+                    else
+                    {
+                        bitmapImage = ConvertImageSharpToBitmapImage(currentImage.Image);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    ImageContentGrid.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = $"Error converting {_currentGaxExtension.ToUpperInvariant()} frame:\n{ex.Message}";
+                    TextScrollViewer.ScrollToHome();
+                    return;
+                }
+
+                if (bitmapImage != null)
+                {
+                    TextScrollViewer.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    Model3DContentGrid.Visibility = Visibility.Collapsed;
+                    ImageContentGrid.Visibility = Visibility.Visible;
+
+                    ContentImage.Source = bitmapImage;
+
+                    var formatLabel = _currentGaxExtension.ToUpperInvariant().TrimStart('.');
+                    var totalImages = _currentGaxImages.Count;
+                    FileInfoTextBlock.Text = $"{formatLabel}: {currentImage.TeamName}\nImage {_currentGaxImageIndex + 1}/{totalImages}, Frame {currentImage.FrameIndex + 1}\nSize: {currentImage.Image.Width}x{currentImage.Image.Height}";
+
+                    var showNavigation = totalImages > 1;
+                    PreviousFrameButton.Visibility = showNavigation ? Visibility.Visible : Visibility.Collapsed;
+                    NextFrameButton.Visibility = showNavigation ? Visibility.Visible : Visibility.Collapsed;
+                }
+                else
+                {
+                    TextScrollViewer.Visibility = Visibility.Visible;
+                    ImageContentGrid.Visibility = Visibility.Collapsed;
+                    AudioContentGrid.Visibility = Visibility.Collapsed;
+                    ContentTextBox.Text = $"{_currentGaxExtension.ToUpperInvariant()}: Could not convert frame to image";
+                    TextScrollViewer.ScrollToHome();
+                }
             }
         }
 
@@ -2339,6 +2508,93 @@ namespace Taview
                     ZoomValueTextBlock.Text = $"{(int)(e.NewValue * 100)}%";
                 }
             }
+        }
+
+        private void ClearGaxImages()
+        {
+            if (_currentGaxImages != null)
+            {
+                foreach (var gaxImage in _currentGaxImages)
+                {
+                    gaxImage.Image?.Dispose();
+                }
+            }
+
+            _currentGaxImages = null;
+            _currentGaxImageIndex = 0;
+            _currentGaxExtension = string.Empty;
+        }
+
+        private byte[]? FindCompanionFileData(string relativePath, string companionExtension)
+        {
+            if (string.IsNullOrEmpty(relativePath))
+            {
+                return null;
+            }
+
+            var companionPath = Path.ChangeExtension(relativePath, companionExtension);
+
+            if (_currentArchive != null && _currentHpiProcessor != null)
+            {
+                var match = _currentArchive.Files.FirstOrDefault(f =>
+                    f.RelativePath.Equals(companionPath, StringComparison.OrdinalIgnoreCase));
+                if (match != null)
+                {
+                    return GetFileData(match);
+                }
+            }
+
+            if (File.Exists(companionPath))
+            {
+                return File.ReadAllBytes(companionPath);
+            }
+
+            return null;
+        }
+
+        private (BitmapSource? Bitmap, string Info) RenderPcoPreview(PcoFile pco)
+        {
+            const int columns = 16;
+            const int swatchSize = 16;
+            const int gap = 1;
+            const int colorCount = 256;
+            const int rows = colorCount / columns;
+
+            var totalWidth = columns * swatchSize + (columns - 1) * gap;
+            var totalHeight = rows * swatchSize + (rows - 1) * gap;
+
+            using var output = new Image<Rgba32>(totalWidth, totalHeight);
+            output.ProcessPixelRows(accessor =>
+            {
+                for (var y = 0; y < totalHeight; y++)
+                {
+                    accessor.GetRowSpan(y).Fill(new Rgba32(48, 48, 48, 255));
+                }
+            });
+
+            for (var i = 0; i < colorCount && i < pco.Palette.Count; i++)
+            {
+                var (r, g, b) = pco.Palette[i];
+                var col = i % columns;
+                var row = i / columns;
+                var x = col * (swatchSize + gap);
+                var y = row * (swatchSize + gap);
+                var color = new Rgba32(r, g, b, 255);
+
+                for (var dy = 0; dy < swatchSize; dy++)
+                {
+                    for (var dx = 0; dx < swatchSize; dx++)
+                    {
+                        output[x + dx, y + dy] = color;
+                    }
+                }
+            }
+
+            var signature = pco.Signature.Length >= 4
+                ? BitConverter.ToString(pco.Signature).Replace("-", "")
+                : "unknown";
+            var info = $"PCO Palette: {pco.Width}x{pco.Height}, canvas {pco.CanvasWidth}x{pco.CanvasHeight}, signature 0x{signature}, {totalWidth}x{totalHeight} preview";
+            return (ConvertImageSharpRgba32ToBitmapImage(output), info);
         }
 
         private (BitmapSource? Bitmap, string Info) RenderFntPreview(byte[] data)

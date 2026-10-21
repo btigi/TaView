@@ -26,6 +26,7 @@ namespace Taview
         private List<string> _terrainHpiPaths;
         private double _model3DDefaultRotationX;
         private double _model3DDefaultRotationY;
+        private Dictionary<string, (TextBlock Status, Button Register, Button Unregister)> _associationRows = new();
 
         public OptionsWindow()
         {
@@ -72,6 +73,15 @@ namespace Taview
             _model3DDefaultRotationY = AppSettings.Instance.Model3DDefaultRotationY;
             Model3DRotationYSlider.Value = _model3DDefaultRotationY;
             Model3DRotationYValueTextBlock.Text = $"{_model3DDefaultRotationY:F0}°";
+
+            _associationRows = new Dictionary<string, (TextBlock Status, Button Register, Button Unregister)>(StringComparer.OrdinalIgnoreCase)
+            {
+                [".hpi"] = (HpiStatusText, HpiRegisterButton, HpiUnregisterButton),
+                [".ufo"] = (UfoStatusText, UfoRegisterButton, UfoUnregisterButton),
+                [".ccx"] = (CcxStatusText, CcxRegisterButton, CcxUnregisterButton),
+                [".gp3"] = (Gp3StatusText, Gp3RegisterButton, Gp3UnregisterButton),
+            };
+            RefreshAssociationRows();
         }
 
         private void PopulateFontList()
@@ -228,6 +238,80 @@ namespace Taview
                     TerrainHpiListBox.Items.Add(dialog.FileName);
                 }
             }
+        }
+
+        private void RefreshAssociationRows()
+        {
+            foreach (var ext in _associationRows.Keys)
+            {
+                RefreshAssociationRow(ext);
+            }
+        }
+
+        private void RefreshAssociationRow(string ext)
+        {
+            if (!_associationRows.TryGetValue(ext, out var row))
+            {
+                return;
+            }
+
+            bool registered;
+            try
+            {
+                registered = FileAssociations.IsRegistered(ext);
+            }
+            catch (Exception)
+            {
+                registered = false;
+            }
+
+            row.Status.Text = registered ? "Registered" : "Not registered";
+            row.Register.IsEnabled = !registered;
+            row.Unregister.IsEnabled = registered;
+        }
+
+        private void RegisterAssociation_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { Tag: string ext })
+            {
+                return;
+            }
+
+            try
+            {
+                FileAssociations.Register(ext);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not register {ext}:\n{ex.Message}",
+                               "File association",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Error);
+            }
+
+            RefreshAssociationRow(ext);
+        }
+
+        private void UnregisterAssociation_Click(object sender, RoutedEventArgs e)
+        {
+            if (sender is not Button { Tag: string ext })
+            {
+                return;
+            }
+
+            try
+            {
+                FileAssociations.Unregister(ext);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Could not unregister {ext}:\n{ex.Message}",
+                               "File association",
+                               MessageBoxButton.OK,
+                               MessageBoxImage.Error);
+            }
+
+            RefreshAssociationRow(ext);
         }
 
         private void RemoveTerrainHpiButton_Click(object sender, RoutedEventArgs e)
